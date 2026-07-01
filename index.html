@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SunnahFinder — fast hadith lookup &amp; search</title>
+  <meta name="description" content="A fast, simple way to look up and search hadith across the major collections: Bukhari, Muslim, Abu Dawud, Tirmidhi, Nasa'i, Ibn Majah and more.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕌</text></svg>">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#/" aria-label="SunnahFinder home">
+      <span class="brand-mark">☪</span>
+      <span class="brand-name">Sunnah<b>Finder</b></span>
+    </a>
+    <div class="header-actions">
+      <button id="theme-toggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+    </div>
+  </header>
+
+  <main id="app" class="app">
+    <!-- Views are rendered here by js/app.js -->
+    <noscript>SunnahFinder needs JavaScript to search and display hadith.</noscript>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Texts and translations from the open
+      <a href="https://github.com/fawazahmed0/hadith-api" target="_blank" rel="noopener">hadith-api</a> dataset,
+      served from a public CDN. Gradings shown are those recorded by the listed scholars.
+      Cross-check important matters with a qualified scholar.
+    </p>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
