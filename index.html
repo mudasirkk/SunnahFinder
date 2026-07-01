@@ -15,7 +15,24 @@
       <span class="brand-name">Sunnah<b>Finder</b></span>
     </a>
     <div class="header-actions">
-      <button id="theme-toggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+      <button id="settings-toggle" class="icon-btn" title="Settings" aria-label="Settings" aria-expanded="false">⚙</button>
+      <div id="settings-panel" class="settings-panel" hidden>
+        <h2>Settings</h2>
+        <label>Theme
+          <select id="set-theme">
+            <option value="auto">Auto (follow system)</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <label>English font
+          <select id="set-eng-font"></select>
+        </label>
+        <label>Arabic font
+          <select id="set-ara-font"></select>
+        </label>
+        <p class="settings-note">“Copy for Docs” embeds your chosen fonts in the pasted text.</p>
+      </div>
     </div>
   </header>
 

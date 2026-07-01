@@ -27,21 +27,98 @@
     localStorage.setItem('sf-scope', JSON.stringify(ids));
   }
 
-  /* ---------- theme ---------- */
+  /* ---------- settings (theme + fonts) ---------- */
 
-  function applyTheme(theme) {
-    document.documentElement.dataset.theme = theme; // 'dark' | 'light'
+  const ENG_FONTS = {
+    system: { label: 'System (default)', css: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", gf: null },
+    georgia: { label: 'Georgia (serif)', css: "Georgia, 'Times New Roman', serif", gf: null },
+    inter: { label: 'Inter', css: "'Inter', -apple-system, 'Segoe UI', sans-serif", gf: 'Inter:wght@400;600;700' },
+    lora: { label: 'Lora', css: "'Lora', Georgia, serif", gf: 'Lora:wght@400;600;700' },
+    merriweather: { label: 'Merriweather', css: "'Merriweather', Georgia, serif", gf: 'Merriweather:wght@400;700' },
+  };
+  const ARA_FONTS = {
+    naskh: { label: 'Naskh (default)', css: "'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', 'Traditional Arabic', serif", gf: null },
+    amiri: { label: 'Amiri', css: "'Amiri', 'Traditional Arabic', serif", gf: 'Amiri:wght@400;700' },
+    scheherazade: { label: 'Scheherazade New', css: "'Scheherazade New', 'Traditional Arabic', serif", gf: 'Scheherazade+New:wght@400;700' },
+    notonaskh: { label: 'Noto Naskh Arabic', css: "'Noto Naskh Arabic', 'Traditional Arabic', serif", gf: 'Noto+Naskh+Arabic:wght@400;700' },
+    kufi: { label: 'Noto Kufi Arabic', css: "'Noto Kufi Arabic', sans-serif", gf: 'Noto+Kufi+Arabic:wght@400;700' },
+  };
+
+  function getSettings() {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('sf-settings') || '{}'); } catch (e) { /* defaults */ }
+    return {
+      theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',
+      engFont: ENG_FONTS[s.engFont] ? s.engFont : 'system',
+      araFont: ARA_FONTS[s.araFont] ? s.araFont : 'naskh',
+    };
   }
 
-  function initTheme() {
-    const saved = localStorage.getItem('sf-theme');
-    const preferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    applyTheme(saved || preferred);
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('sf-theme', next);
-      applyTheme(next);
+  function saveSettings(s) {
+    localStorage.setItem('sf-settings', JSON.stringify(s));
+  }
+
+  function ensureGoogleFont(gf) {
+    if (!gf) return;
+    const id = 'gf-' + gf.replace(/[^a-z]/gi, '');
+    if (document.getElementById(id)) return;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' + gf + '&display=swap';
+    document.head.appendChild(link); // if blocked/offline, the CSS stacks still apply
+  }
+
+  function applySettings() {
+    const s = getSettings();
+    const dark = s.theme === 'dark' ||
+      (s.theme === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    ensureGoogleFont(ENG_FONTS[s.engFont].gf);
+    ensureGoogleFont(ARA_FONTS[s.araFont].gf);
+    document.documentElement.style.setProperty('--english-font', ENG_FONTS[s.engFont].css);
+    document.documentElement.style.setProperty('--arabic-font', ARA_FONTS[s.araFont].css);
+  }
+
+  function initSettings() {
+    const btn = document.getElementById('settings-toggle');
+    const panel = document.getElementById('settings-panel');
+    const themeSel = document.getElementById('set-theme');
+    const engSel = document.getElementById('set-eng-font');
+    const araSel = document.getElementById('set-ara-font');
+    const fill = (sel, fonts) => {
+      sel.innerHTML = Object.keys(fonts).map((k) =>
+        '<option value="' + k + '">' + esc(fonts[k].label) + '</option>').join('');
+    };
+    fill(engSel, ENG_FONTS);
+    fill(araSel, ARA_FONTS);
+    const s = getSettings();
+    themeSel.value = s.theme;
+    engSel.value = s.engFont;
+    araSel.value = s.araFont;
+
+    const onChange = () => {
+      saveSettings({ theme: themeSel.value, engFont: engSel.value, araFont: araSel.value });
+      applySettings();
+    };
+    themeSel.addEventListener('change', onChange);
+    engSel.addEventListener('change', onChange);
+    araSel.addEventListener('change', onChange);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.hidden = !panel.hidden;
+      btn.setAttribute('aria-expanded', String(!panel.hidden));
     });
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !panel.hidden) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    });
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySettings);
+    }
+    applySettings();
   }
 
   /* ---------- routing ---------- */
@@ -52,7 +129,15 @@
     const params = new URLSearchParams(queryPart || '');
     const segs = pathPart.split('/').filter(Boolean).map(decodeURIComponent);
     if (segs.length === 0) return { view: 'home' };
-    if (segs[0] === 'search') return { view: 'search', q: params.get('q') || '', in: (params.get('in') || '').split(',').filter(Boolean) };
+    if (segs[0] === 'search') {
+      return {
+        view: 'search',
+        q: params.get('q') || '',
+        in: (params.get('in') || '').split(',').filter(Boolean),
+        n: params.get('n') || '',
+        g: (params.get('g') || '').split(',').filter(Boolean),
+      };
+    }
     if (segs[0] === 'b' && segs.length >= 2) {
       const bookId = segs[1];
       if (!D.bookById(bookId)) return { view: 'home' };
@@ -69,6 +154,8 @@
         const p = new URLSearchParams();
         p.set('q', route.q);
         if (route.in && route.in.length) p.set('in', route.in.join(','));
+        if (route.n) p.set('n', route.n);
+        if (route.g && route.g.length) p.set('g', route.g.join(','));
         return '#/search?' + p.toString();
       }
       case 'book': return '#/b/' + route.bookId;
@@ -153,6 +240,83 @@
     void scope;
   }
 
+  /* ---------- result filters (narrator, grade classification) ---------- */
+
+  const GRADE_CATS = [
+    { id: 'sahih', label: 'Sahih' },
+    { id: 'hasan', label: 'Hasan' },
+    { id: 'daif', label: 'Da’if / weak' },
+    { id: 'ungraded', label: 'Ungraded / other' },
+  ];
+
+  /** Classification categories for a hadith, from its recorded grades. */
+  function gradeCatsOf(bookId, hadith) {
+    const grades = hadith.grades || [];
+    if (!grades.length) return bookId === 'bukhari' || bookId === 'muslim' ? ['sahih'] : ['ungraded'];
+    const cats = new Set();
+    for (const g of grades) {
+      const c = gradeClass(String(g.grade));
+      if (c === 'grade-good') cats.add('sahih');
+      else if (c === 'grade-ok') cats.add('hasan');
+      else if (c === 'grade-weak' || c === 'grade-bad') cats.add('daif');
+      else cats.add('ungraded');
+    }
+    return Array.from(cats);
+  }
+
+  /** Narrator filter: matches inside the attribution opening of the text
+   * ("Narrated Aisha:", "Abu Huraira reported:", or the Arabic isnad). */
+  function matchesNarrator(hadith, normNarrator) {
+    if (!normNarrator) return true;
+    return hadith._norm.slice(0, 200).includes(normNarrator);
+  }
+
+  function filtersHtml(route) {
+    const g = route.g || [];
+    const chips = GRADE_CATS.map((c) =>
+      '<button type="button" class="chip chip-sm' + (g.includes(c.id) ? ' chip-on' : '') + '" data-grade="' + c.id + '">' +
+        c.label + '</button>').join('');
+    return (
+      '<div class="filters">' +
+        '<input id="filter-narrator" type="search" autocomplete="off" ' +
+          'placeholder="Filter by narrator (e.g. Aisha, Abu Huraira)…" value="' + esc(route.n || '') + '" ' +
+          'aria-label="Filter by narrator">' +
+        '<div class="grade-filters"><span class="scope-label">Grade:</span>' + chips + '</div>' +
+      '</div>'
+    );
+  }
+
+  function bindFilterControls(route) {
+    const nav = (n, g) => {
+      location.hash = href({ view: 'search', q: route.q, in: getScope(), n, g });
+    };
+    const narr = document.getElementById('filter-narrator');
+    narr.addEventListener('change', () => nav(narr.value.trim(), route.g || []));
+    narr.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nav(narr.value.trim(), route.g || []); } });
+    document.querySelectorAll('.chip[data-grade]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.grade;
+        let g = (route.g || []).slice();
+        g = g.includes(id) ? g.filter((x) => x !== id) : g.concat(id);
+        nav(narr.value.trim(), g);
+      });
+    });
+  }
+
+  function applyFilters(results, route) {
+    const nq = route.n ? S.normalize(route.n) : '';
+    const g = route.g || [];
+    if (!nq && !g.length) return results;
+    return results.filter((r) => {
+      if (!matchesNarrator(r.hadith, nq)) return false;
+      if (g.length) {
+        const cats = gradeCatsOf(r.bookId, r.hadith);
+        if (!cats.some((c) => g.includes(c))) return false;
+      }
+      return true;
+    });
+  }
+
   function gradeClass(grade) {
     const g = grade.toLowerCase();
     if (/maudu|fabricat|munkar|batil/.test(g)) return 'grade-bad';
@@ -219,14 +383,19 @@
 
   function htmlCopy(bookId, hadith, arabic) {
     const m = copyMeta(bookId, hadith);
-    let out = '<p><strong>' + esc(m.ref) + '</strong></p>';
-    if (arabic) out += '<p dir="rtl" lang="ar">' + esc(arabic) + '</p>';
-    out += '<p>' + esc(hadith.text).replace(/\n/g, '<br>') + '</p>';
+    // Carry the user's font settings into the pasted rich text (Word/Docs
+    // honor font-family when the font is available on their machine).
+    const s = getSettings();
+    const engStyle = ' style="font-family: ' + ENG_FONTS[s.engFont].css + ';"';
+    const araStyle = ' style="font-family: ' + ARA_FONTS[s.araFont].css + '; font-size: 1.3em;"';
+    let out = '<p' + engStyle + '><strong>' + esc(m.ref) + '</strong></p>';
+    if (arabic) out += '<p dir="rtl" lang="ar"' + araStyle + '>' + esc(arabic) + '</p>';
+    out += '<p' + engStyle + '>' + esc(hadith.text).replace(/\n/g, '<br>') + '</p>';
     const meta = [];
     if (m.grades) meta.push('<strong>Grade:</strong> ' + esc(m.grades));
     if (m.sec && m.sec.name) meta.push('<strong>Chapter:</strong> ' + esc(m.sec.number + '. ' + m.sec.name));
     meta.push('<strong>Source:</strong> <a href="' + esc(m.url) + '">' + esc(m.url) + '</a>');
-    out += '<p>' + meta.join('<br>') + '</p>';
+    out += '<p' + engStyle + '>' + meta.join('<br>') + '</p>';
     return out;
   }
 
@@ -349,9 +518,11 @@
       '<section class="search-page">' +
         searchBarHtml(q, false) +
         scopeChipsHtml(scope) +
+        filtersHtml(route) +
         '<div id="results">' + loadingHtml(scope.filter((id) => !D.isLoaded(id, lang)), lang) + '</div>' +
       '</section>';
     bindSearchControls(scope, q);
+    bindFilterControls(route);
 
     ensureLoaded(scope, lang).then(() => {
       // The user may have navigated away while editions were downloading.
@@ -359,31 +530,53 @@
       if (now.view !== 'search' || now.q !== q) return;
       const eds = scope.map((id) => D.getEditionSync(id, lang)).filter(Boolean);
       const results = S.search(eds, q, RESULT_LIMIT);
-      renderResults(q, results, scope);
+      renderResults(q, results, scope, route);
     }).catch((e) => {
       const el = document.getElementById('results');
       if (el) el.innerHTML = '<p class="error">Could not download the collections (' + esc(e.message) + '). Check your connection and try again.</p>';
     });
   }
 
-  function renderResults(q, results, scope) {
+  function renderResults(q, results, scope, route) {
     const el = document.getElementById('results');
     if (!el) return;
+    const unfiltered = results.length;
+    results = applyFilters(results, route || {});
+    const filteredOut = unfiltered - results.length;
+    if (!results.length && filteredOut > 0) {
+      el.innerHTML =
+        '<p class="no-results">All ' + filteredOut + ' matches for <b>' + esc(q) + '</b> were hidden by your filters.</p>' +
+        '<p class="no-results-tips">Clear the narrator/grade filters above to see them.</p>';
+      return;
+    }
     if (!results.length) {
       el.innerHTML =
         '<p class="no-results">No matches for <b>' + esc(q) + '</b> in the selected collections.</p>' +
         '<ul class="no-results-tips">' +
-          '<li>Try fewer or more general words (search uses AND: every word must appear).</li>' +
+          '<li>Try fewer or more general words (every meaningful word must appear; filler words like “to” and “of” are ignored).</li>' +
           '<li>Add more collections above.</li>' +
           '<li>Looking for a specific hadith? Type e.g. <code>muslim 2564</code>.</li>' +
         '</ul>';
       return;
     }
-    const items = results.map((r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420), '', r.lang)).join('');
-    el.innerHTML =
-      '<p class="result-count">' + results.length + (results.length === RESULT_LIMIT ? '+' : '') +
-      ' result' + (results.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
-      scope.map((id) => esc(D.bookById(id).short)).join(', ') + '</p>' + items;
+    const strict = results.filter((r) => !r.partial);
+    const partial = results.filter((r) => r.partial);
+    const card = (r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420), '', r.lang);
+    let html;
+    if (strict.length) {
+      html = '<p class="result-count">' + strict.length + (unfiltered === RESULT_LIMIT ? '+' : '') +
+        ' result' + (strict.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
+        scope.map((id) => esc(D.bookById(id).short)).join(', ') +
+        (filteredOut > 0 ? ' <span class="muted">(' + filteredOut + ' hidden by filters)</span>' : '') +
+        '</p>' + strict.map(card).join('');
+    } else {
+      html = '<p class="result-count">No hadith contain every word of <b>' + esc(q) + '</b> — closest matches below.</p>';
+    }
+    if (partial.length) {
+      html += '<p class="result-count partial-divider">Close matches <span class="muted">— one of your words is missing from these</span>:</p>' +
+        partial.map(card).join('');
+    }
+    el.innerHTML = html;
     bindCardCopies(el);
   }
 
@@ -642,6 +835,6 @@
   });
 
   window.addEventListener('hashchange', render);
-  initTheme();
+  initSettings();
   render();
 })();
