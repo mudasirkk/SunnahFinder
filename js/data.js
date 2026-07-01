@@ -169,6 +169,54 @@
     });
   }
 
+  /* Common words + narration boilerplate excluded when comparing hadith
+   * texts for parallel narrations, so overlap reflects distinctive wording. */
+  const STOPWORDS = new Set(('that this with from have will then when what were they them their there which would ' +
+    'said says allah allahs messenger prophet narrated upon peace blessings heard people some came went about asked ' +
+    'told should shall been being because until while after before other than your more does doing whoever anyone ' +
+    'something someone very into against among whom his hers hims come make made give given take taken').split(' '));
+
+  function tokensOf(h) {
+    if (h._tokens) return h._tokens;
+    const s = new Set();
+    for (const w of h._norm.split(' ')) {
+      if (w.length >= 4 && !STOPWORDS.has(w)) s.add(w);
+    }
+    h._tokens = s;
+    return s;
+  }
+
+  /**
+   * Parallel narrations: hadith in the downloaded collections whose verbatim
+   * text shares most of its distinctive wording with the given hadith.
+   * Purely mechanical text comparison — no external data is invented.
+   * @returns [{bookId, hadith, score}] best first
+   */
+  function similarHadith(bookId, number, limit) {
+    const got = getHadith(bookId, number);
+    if (!got) return [];
+    const A = tokensOf(got.hadith);
+    if (A.size < 4) return [];
+    const out = [];
+    for (const [bId, ed] of memory) {
+      for (const h of ed.hadiths) {
+        if (bId === bookId && h === got.hadith) continue;
+        const B = tokensOf(h);
+        let inter = 0;
+        for (const t of B) if (A.has(t)) inter++;
+        if (inter < 6) continue;
+        const score = inter / Math.min(A.size, B.size);
+        if (score >= 0.5) out.push({ bookId: bId, hadith: h, score });
+      }
+    }
+    out.sort((a, b) => b.score - a.score);
+    return out.slice(0, limit || 6);
+  }
+
+  function loadedBookIds() {
+    return Array.from(memory.keys());
+  }
+
   /** Parse a reference query like "bukhari 5062" / "muslim #1". Returns {bookId, number} or null. */
   function parseReference(query) {
     const q = query.trim().toLowerCase().replace(/[.,;:#]+/g, ' ').replace(/\s+/g, ' ');
@@ -203,5 +251,7 @@
     hadithsInSection,
     parseReference,
     sunnahComUrl,
+    similarHadith,
+    loadedBookIds,
   };
 })();

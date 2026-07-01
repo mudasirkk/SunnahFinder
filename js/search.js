@@ -13,6 +13,7 @@
       .replace(/[̀-ͯ]/g, '')          // latin accents
       .replace(/[ﷰ-﷿]/g, ' ')         // ﷺ and other Arabic ligatures
       .replace(/[ً-ٰٟـ]/g, '') // Arabic harakat + tatweel
+      .replace(/[،؛؟٪٫٬٭۔]/g, ' ') // Arabic punctuation
       .replace(/['’‘`´]/g, '')   // apostrophes: nasa'i -> nasai
       .replace(/[^a-z0-9؀-ۿ]+/g, ' ') // keep latin, digits, arabic
       .replace(/\s+/g, ' ')

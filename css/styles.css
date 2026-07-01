@@ -207,6 +207,27 @@ code, kbd {
   margin-bottom: 0.35rem;
 }
 .result-ref { font-weight: 600; }
+.result-meta { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+
+.card-copy {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+}
+.card-copy:hover { color: var(--accent); border-color: var(--accent); }
+
+.match-badge {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  white-space: nowrap;
+}
 .result-text { margin: 0; }
 .quiet-link { color: inherit; }
 .quiet-link:hover { text-decoration: none; }
@@ -344,10 +365,62 @@ code, kbd {
   margin-top: 1.2rem;
   font-variant-numeric: tabular-nums;
 }
+.pager a {
+  padding: 0.35rem 0.9rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+.pager a:hover { text-decoration: none; filter: brightness(0.97); }
+
+/* ---------- related & explanations ---------- */
+
+.related h2, .explanations h2 {
+  font-size: 1.05rem;
+  margin: 1.8rem 0 0.7rem;
+}
+.related .how, .explanations .how { font-weight: 400; font-size: 0.8rem; }
+.related-note { font-size: 0.85rem; }
+
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.linklike:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
+
+.explain-links { list-style: none; padding: 0; margin: 0; }
+.explain-links li {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.92rem;
+}
+
+/* ---------- mobile ---------- */
 
 @media (max-width: 560px) {
+  .app { padding: 0.8rem; }
   .hero { padding-top: 1.2rem; }
   .hero h1 { font-size: 1.5rem; }
+  .search-form { gap: 0.4rem; }
+  .search-form input { min-width: 0; font-size: 16px; } /* 16px stops iOS focus-zoom */
+  .search-btn { padding: 0 0.9rem; }
+  /* comfortable touch targets */
+  .chip { padding: 0.4rem 0.9rem; }
+  .card-copy { padding: 0.3rem 0.7rem; }
+  .icon-btn { padding: 0.4rem 0.7rem; }
+  .pager a { padding: 0.55rem 1.1rem; }
   .hadith-card { padding: 1rem; }
-  .hadith-arabic { font-size: 1.3rem; }
+  .hadith-arabic { font-size: 1.3rem; line-height: 2; }
+  .hadith-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .hadith-actions .action-btn { text-align: center; padding: 0.7rem 0.5rem; }
+  .result { padding: 0.75rem 0.85rem; }
+  .result-head { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+  .site-footer { font-size: 0.8rem; }
 }

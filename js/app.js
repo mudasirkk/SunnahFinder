@@ -179,6 +179,102 @@
     return esc(D.bookById(bookId).name) + ' ' + esc(String(hadith.hadithnumber));
   }
 
+  /* ---------- copy formats ----------
+   * Everything copied is verbatim from the dataset: reference, Arabic,
+   * translation, chapter and recorded gradings — plus a source link. */
+
+  function copyMeta(bookId, hadith) {
+    const b = D.bookById(bookId);
+    const ed = D.getEditionSync(bookId);
+    const sec = ed ? D.sectionOf(ed, hadith.hadithnumber) : null;
+    const grades = (hadith.grades || []).map((g) => g.grade + ' — ' + g.name).join('; ');
+    const url = D.sunnahComUrl(bookId, hadith.hadithnumber) ||
+      location.href.split('#')[0] + '#/b/' + bookId + '/' + hadith.hadithnumber;
+    return { ref: b.name + ' ' + hadith.hadithnumber, sec, grades, url };
+  }
+
+  function plainCopy(bookId, hadith, arabic) {
+    const m = copyMeta(bookId, hadith);
+    let out = m.ref + '\n\n';
+    if (arabic) out += arabic + '\n\n';
+    out += hadith.text + '\n';
+    if (m.grades) out += '\nGrade: ' + m.grades;
+    if (m.sec && m.sec.name) out += '\nChapter: ' + m.sec.number + '. ' + m.sec.name;
+    out += '\nSource: ' + m.url;
+    return out;
+  }
+
+  function markdownCopy(bookId, hadith, arabic) {
+    const m = copyMeta(bookId, hadith);
+    const quote = (t) => t.split('\n').map((l) => '> ' + l).join('\n');
+    let out = '**' + m.ref + '**\n\n';
+    if (arabic) out += quote(arabic) + '\n>\n';
+    out += quote(hadith.text) + '\n\n';
+    if (m.grades) out += '**Grade:** ' + m.grades + '  \n';
+    if (m.sec && m.sec.name) out += '**Chapter:** ' + m.sec.number + '. ' + m.sec.name + '  \n';
+    out += '**Source:** [' + m.url + '](' + m.url + ')\n';
+    return out;
+  }
+
+  function htmlCopy(bookId, hadith, arabic) {
+    const m = copyMeta(bookId, hadith);
+    let out = '<p><strong>' + esc(m.ref) + '</strong></p>';
+    if (arabic) out += '<p dir="rtl" lang="ar">' + esc(arabic) + '</p>';
+    out += '<p>' + esc(hadith.text).replace(/\n/g, '<br>') + '</p>';
+    const meta = [];
+    if (m.grades) meta.push('<strong>Grade:</strong> ' + esc(m.grades));
+    if (m.sec && m.sec.name) meta.push('<strong>Chapter:</strong> ' + esc(m.sec.number + '. ' + m.sec.name));
+    meta.push('<strong>Source:</strong> <a href="' + esc(m.url) + '">' + esc(m.url) + '</a>');
+    out += '<p>' + meta.join('<br>') + '</p>';
+    return out;
+  }
+
+  /** Copy with a text/html flavor so Word / Google Docs keep the formatting. */
+  function copyRich(html, plain, btn) {
+    if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard.write([new window.ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      })]).then(() => flashBtn(btn), () => copy(plain, btn));
+    } else {
+      copy(plain, btn);
+    }
+  }
+
+  function flashBtn(btn) {
+    const old = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+
+  /* ---------- hadith cards (search results, chapter lists, parallels) ---------- */
+
+  function cardHtml(bookId, h, bodyHtml, badge) {
+    const link = href({ view: 'hadith', bookId, number: String(h.hadithnumber) });
+    return (
+      '<article class="result">' +
+        '<header class="result-head">' +
+          '<a class="result-ref" href="' + link + '">' + refLabel(bookId, h) + '</a>' +
+          '<span class="result-meta">' +
+            (badge || '') + gradesHtml(bookId, h) +
+            '<button type="button" class="card-copy" data-book="' + bookId + '" data-num="' + esc(String(h.hadithnumber)) + '" ' +
+              'title="Copy this hadith (text, grade and source link)">Copy</button>' +
+          '</span>' +
+        '</header>' +
+        '<p class="result-text"><a class="quiet-link" href="' + link + '">' + bodyHtml + '</a></p>' +
+      '</article>'
+    );
+  }
+
+  function bindCardCopies(rootEl) {
+    (rootEl || document).querySelectorAll('.card-copy').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const got = D.getHadith(btn.dataset.book, btn.dataset.num);
+        if (got) copy(plainCopy(btn.dataset.book, got.hadith, null), btn);
+      });
+    });
+  }
+
   /* Loading panel while editions download. */
   function loadingHtml(ids) {
     const rows = ids.map((id) => {
@@ -275,23 +371,12 @@
         '</ul>';
       return;
     }
-    const items = results.map((r) => {
-      const b = D.bookById(r.bookId);
-      const link = href({ view: 'hadith', bookId: r.bookId, number: String(r.hadith.hadithnumber) });
-      return (
-        '<article class="result">' +
-          '<header class="result-head">' +
-            '<a class="result-ref" href="' + link + '">' + esc(b.name) + ' ' + esc(String(r.hadith.hadithnumber)) + '</a>' +
-            '<span class="result-grades">' + gradesHtml(r.bookId, r.hadith) + '</span>' +
-          '</header>' +
-          '<p class="result-text"><a class="quiet-link" href="' + link + '">' + S.highlight(r.hadith.text, q, 420) + '</a></p>' +
-        '</article>'
-      );
-    }).join('');
+    const items = results.map((r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420))).join('');
     el.innerHTML =
       '<p class="result-count">' + results.length + (results.length === RESULT_LIMIT ? '+' : '') +
       ' result' + (results.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
       scope.map((id) => esc(D.bookById(id).short)).join(', ') + '</p>' + items;
+    bindCardCopies(el);
   }
 
   function renderBook(route) {
@@ -310,6 +395,7 @@
       if (secs.length <= 1) {
         // Collections without real chapters (e.g. the forty-hadith sets): list all.
         el.innerHTML = hadithListHtml(b.id, ed.hadiths);
+        bindCardCopies(el);
         return;
       }
       el.innerHTML = '<ol class="section-list">' + secs.map((s) =>
@@ -335,22 +421,14 @@
       const hs = D.hadithsInSection(ed, route.section);
       el.innerHTML = '<h1 class="section-title">' + esc(route.section) + '. ' + esc(name) + '</h1>' +
         (hs.length ? hadithListHtml(b.id, hs) : '<p class="no-results">No hadith recorded in this chapter.</p>');
+      bindCardCopies(el);
     }).catch(errInto('section-body'));
   }
 
   function hadithListHtml(bookId, hadiths) {
     return hadiths.map((h) => {
-      const link = href({ view: 'hadith', bookId, number: String(h.hadithnumber) });
       const text = h.text.length > 320 ? h.text.slice(0, 320) + '…' : h.text;
-      return (
-        '<article class="result">' +
-          '<header class="result-head">' +
-            '<a class="result-ref" href="' + link + '">' + refLabel(bookId, h) + '</a>' +
-            '<span class="result-grades">' + gradesHtml(bookId, h) + '</span>' +
-          '</header>' +
-          '<p class="result-text"><a class="quiet-link" href="' + link + '">' + esc(text) + '</a></p>' +
-        '</article>'
-      );
+      return cardHtml(bookId, h, esc(text));
     }).join('');
   }
 
@@ -374,6 +452,7 @@
       const prev = index > 0 ? edition.hadiths[index - 1] : null;
       const next = index < edition.hadiths.length - 1 ? edition.hadiths[index + 1] : null;
       const sunnahUrl = D.sunnahComUrl(b.id, hadith.hadithnumber);
+      let arabicText = null; // set once the Arabic loads; copy buttons include it
 
       el.innerHTML =
         '<article class="hadith-card">' +
@@ -385,27 +464,53 @@
           '<div class="hadith-arabic" id="arabic-slot" dir="rtl" lang="ar"><span class="muted">Loading Arabic…</span></div>' +
           '<div class="hadith-english" lang="en">' + esc(hadith.text) + '</div>' +
           '<footer class="hadith-actions">' +
-            '<button type="button" class="action-btn" id="copy-text">Copy text</button>' +
+            '<button type="button" class="action-btn" id="copy-text" title="Plain text: reference, Arabic, translation, grade, source">Copy text</button>' +
+            '<button type="button" class="action-btn" id="copy-md" title="Markdown: for notes apps, Obsidian, GitHub…">Copy Markdown</button>' +
+            '<button type="button" class="action-btn" id="copy-rich" title="Formatted: paste into Word / Google Docs with formatting kept">Copy for Docs</button>' +
             '<button type="button" class="action-btn" id="copy-link">Copy link</button>' +
-            (sunnahUrl ? '<a class="action-btn" target="_blank" rel="noopener" href="' + sunnahUrl + '">View on sunnah.com ↗</a>' : '') +
           '</footer>' +
           '<nav class="pager">' +
             (prev ? '<a href="' + href({ view: 'hadith', bookId: b.id, number: String(prev.hadithnumber) }) + '">← ' + esc(String(prev.hadithnumber)) + '</a>' : '<span></span>') +
             (next ? '<a href="' + href({ view: 'hadith', bookId: b.id, number: String(next.hadithnumber) }) + '">' + esc(String(next.hadithnumber)) + ' →</a>' : '<span></span>') +
           '</nav>' +
-        '</article>';
+        '</article>' +
+
+        '<section class="related">' +
+          '<h2>Similar narrations <span class="how muted">— matched automatically by shared wording; texts shown are verbatim</span></h2>' +
+          '<div id="related-list"></div>' +
+          '<p class="related-note muted" id="related-note"></p>' +
+        '</section>' +
+
+        '<section class="explanations">' +
+          '<h2>Explanations &amp; commentary</h2>' +
+          '<ul class="explain-links" id="explain-links"></ul>' +
+          '<p class="muted how">These links open this hadith (or a search for it) on established external sites. ' +
+          'SunnahFinder never writes its own commentary — everything shown above is verbatim from the source dataset.</p>' +
+        '</section>';
 
       document.getElementById('copy-text').addEventListener('click', function () {
-        copy(D.bookById(b.id).name + ' ' + hadith.hadithnumber + '\n\n' + hadith.text, this);
+        copy(plainCopy(b.id, hadith, arabicText), this);
+      });
+      document.getElementById('copy-md').addEventListener('click', function () {
+        copy(markdownCopy(b.id, hadith, arabicText), this);
+      });
+      document.getElementById('copy-rich').addEventListener('click', function () {
+        copyRich(htmlCopy(b.id, hadith, arabicText), plainCopy(b.id, hadith, arabicText), this);
       });
       document.getElementById('copy-link').addEventListener('click', function () {
         copy(location.href, this);
       });
 
+      renderRelated(b.id, hadith);
+      renderExplainLinks(b.id, hadith, sunnahUrl, null);
+
       D.loadArabic(b.id, hadith.hadithnumber).then((ar) => {
         const slot = document.getElementById('arabic-slot');
-        if (slot) slot.innerHTML = ar ? esc(ar) : '';
-        if (slot && !ar) slot.style.display = 'none';
+        if (!slot) return;
+        arabicText = ar || null;
+        slot.innerHTML = ar ? esc(ar) : '';
+        if (!ar) slot.style.display = 'none';
+        renderExplainLinks(b.id, hadith, sunnahUrl, arabicText);
       }).catch(() => {
         const slot = document.getElementById('arabic-slot');
         if (slot) slot.style.display = 'none';
@@ -413,12 +518,80 @@
     }).catch(errInto('detail-body'));
   }
 
+  /* "Similar narrations": verbatim texts from the downloaded collections that
+   * share most of their distinctive wording with this hadith (see SFData.similarHadith). */
+  function renderRelated(bookId, hadith) {
+    const list = document.getElementById('related-list');
+    const note = document.getElementById('related-note');
+    if (!list || !note) return;
+    const matches = D.similarHadith(bookId, hadith.hadithnumber, 6);
+    list.innerHTML = matches.length
+      ? matches.map((m) => {
+          const text = m.hadith.text.length > 280 ? m.hadith.text.slice(0, 280) + '…' : m.hadith.text;
+          const badge = '<span class="match-badge" title="Share of distinctive words in common">' + Math.round(m.score * 100) + '% wording overlap</span>';
+          return cardHtml(m.bookId, m.hadith, esc(text), badge);
+        }).join('')
+      : '<p class="muted">No close parallels found in the downloaded collections.</p>';
+    bindCardCopies(list);
+
+    const loaded = D.loadedBookIds();
+    const remaining = D.BOOKS.filter((bk) => !loaded.includes(bk.id));
+    if (remaining.length) {
+      note.innerHTML = 'Compared against ' + loaded.map((id) => esc(D.bookById(id).short)).join(', ') +
+        '. <button type="button" class="linklike" id="related-more">Search all ' + D.BOOKS.length + ' collections</button>';
+      document.getElementById('related-more').addEventListener('click', function () {
+        this.disabled = true;
+        this.textContent = 'Downloading the other collections…';
+        const route = parseRoute();
+        ensureLoaded(D.BOOKS.map((bk) => bk.id)).then(() => {
+          const now = parseRoute();
+          if (now.view === 'hadith' && now.bookId === route.bookId && now.number === route.number) {
+            renderRelated(bookId, hadith);
+          }
+        }).catch(() => {
+          this.disabled = false;
+          this.textContent = 'Retry downloading the other collections';
+        });
+      });
+    } else {
+      note.textContent = 'Compared against all ' + D.BOOKS.length + ' collections.';
+    }
+  }
+
+  /* Links to the same hadith (or a targeted search for it) on trusted external
+   * sites. We only link out — no commentary is generated or excerpted here. */
+  function renderExplainLinks(bookId, hadith, sunnahUrl, arabicText) {
+    const ul = document.getElementById('explain-links');
+    if (!ul) return;
+    const links = [];
+    if (sunnahUrl) {
+      links.push({ url: sunnahUrl, label: 'Sunnah.com — this hadith', detail: 'full isnad, alternative translations and in-book references' });
+    } else {
+      links.push({
+        url: 'https://sunnah.com/search?q=' + encodeURIComponent(hadith.text.split(/\s+/).slice(0, 8).join(' ')),
+        label: 'Sunnah.com — search for this hadith', detail: 'no direct page mapping for this collection; opens a text search',
+      });
+    }
+    if (arabicText) {
+      const words = window.SFSearch.normalize(arabicText).split(' ');
+      const tail = words.slice(-10).join(' ');
+      links.push({
+        url: 'https://dorar.net/hadith/search?q=' + encodeURIComponent(tail),
+        label: 'Dorar.net — takhrij & rulings (Arabic)', detail: 'searches the hadith encyclopedia using this narration’s Arabic wording',
+      });
+    }
+    links.push({
+      url: 'https://islamqa.info/en/search?q=' + encodeURIComponent(D.bookById(bookId).short + ' ' + hadith.hadithnumber),
+      label: 'IslamQA.info — search fatwas citing this hadith', detail: 'scholarly answers that reference this narration',
+    });
+    ul.innerHTML = links.map((l) =>
+      '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.label) + ' ↗</a>' +
+      '<span class="muted"> — ' + esc(l.detail) + '</span></li>'
+    ).join('');
+  }
+
   function copy(text, btn) {
-    const done = () => {
-      const old = btn.textContent;
-      btn.textContent = 'Copied ✓';
-      setTimeout(() => { btn.textContent = old; }, 1500);
-    };
+    const done = () => flashBtn(btn);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, done);
     } else {

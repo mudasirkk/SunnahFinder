@@ -22,11 +22,26 @@ the major collections right in your browser.
   the chapter it belongs to, scholars' authenticity gradings (Sahih / Hasan /
   Da'if, color-coded), previous/next navigation, copy-text and copy-link
   buttons, and a cross-link to sunnah.com.
+- **Copy that pastes well anywhere** — every hadith has *Copy text* (plain,
+  readable), *Copy Markdown* (notes apps, Obsidian, GitHub), and *Copy for
+  Docs* (rich text that keeps formatting in Word / Google Docs). Copies
+  include the reference, Arabic, translation, recorded grade, chapter and a
+  source link — all verbatim. Every result card also has a one-tap Copy button.
+- **Similar narrations** — each hadith page lists parallel narrations found
+  in the downloaded collections by mechanical text-overlap matching (the
+  match percentage is shown). The linked texts are verbatim; nothing is
+  inferred or written by the app.
+- **Explanations & commentary links** — each hadith page links out to the
+  same hadith (or a targeted search for it) on established sites:
+  Sunnah.com (isnad, alternative translations), Dorar.net (Arabic takhrij
+  and scholars' rulings) and IslamQA.info (fatwas citing the narration).
+  SunnahFinder itself never generates commentary.
 - **Browse mode** — every collection can be browsed chapter by chapter.
 - **Shareable URLs** — every search and every hadith has a stable `#/…` link.
 - **Offline-friendly** — collections download once (~1–5 MB each) and are
   cached in your browser, so repeat searches are instant and work offline.
-- **Dark mode**, mobile-friendly layout, `/` focuses the search box.
+- **Mobile-friendly** — responsive layout, comfortable touch targets, no
+  horizontal scrolling, dark mode, `/` focuses the search box on desktop.
 
 ## Running it
 
@@ -55,8 +70,12 @@ sign up for. It also works on any static host (GitHub Pages, Netlify, etc.).
 - The UI (`js/app.js`) is a small hash-router with views for home, search
   results, collection chapters, and hadith detail. No frameworks.
 
-## A note on the texts
+## A note on the texts — nothing is generated
 
-Translations and gradings are reproduced as recorded in the dataset. Gradings
-shown are those of the named scholars (e.g. al-Albani) — for anything that
-matters, verify with a qualified scholar.
+Every piece of content displayed or copied (Arabic, translations, chapter
+names, gradings) is reproduced **verbatim** from the dataset; the app never
+writes, summarizes or paraphrases religious content. "Similar narrations"
+are found by mechanical comparison of the verbatim texts, and "Explanations"
+are outbound links to external sites only. Gradings shown are those of the
+named scholars (e.g. al-Albani) — for anything that matters, verify with a
+qualified scholar.
