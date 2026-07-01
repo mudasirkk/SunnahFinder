@@ -113,14 +113,59 @@
    * searches and lookups are O(1)-ish after the first load. */
   function indexEdition(bookId, ed, lang) {
     const byNumber = new Map();
+    const stem = window.SFSearch.stem;
+    const postings = (lang || 'eng') === 'eng' ? new Map() : null;
+
+    // Chapter titles ground topical relevance: a hadith filed under
+    // "Good manners towards parents" should outrank an incidental mention.
+    // One shared Set of stemmed title words per section.
+    const secRanges = [];
+    const details = ed.metadata.section_details || {};
+    const names = ed.metadata.sections || {};
+    for (const key of Object.keys(details)) {
+      const d = details[key];
+      if (!d || !names[key]) continue;
+      const stems = new Set();
+      for (const w of window.SFSearch.normalize(names[key]).split(' ')) {
+        if (w.length >= 2) stems.add(stem(w));
+      }
+      secRanges.push({ first: Number(d.hadithnumber_first), last: Number(d.hadithnumber_last), stems });
+    }
+    secRanges.sort((a, b) => a.first - b.first);
+    const secOf = (n) => {
+      let lo = 0, hi = secRanges.length - 1, hit = null;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (secRanges[mid].first <= n) { if (n <= secRanges[mid].last) hit = secRanges[mid]; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      return hit;
+    };
+
     for (let i = 0; i < ed.hadiths.length; i++) {
       const h = ed.hadiths[i];
       h._norm = window.SFSearch.normalize(h.text);
+      const sec = secOf(Number(h.hadithnumber));
+      h._secStems = sec ? sec.stems : null;
       byNumber.set(String(h.hadithnumber), i);
+      if (postings) {
+        // Whole-word index keyed by stem, for word-boundary search.
+        const seen = new Set();
+        for (const w of h._norm.split(' ')) {
+          if (w.length < 2) continue;
+          const s = stem(w);
+          if (seen.has(s)) continue;
+          seen.add(s);
+          let arr = postings.get(s);
+          if (!arr) postings.set(s, (arr = []));
+          arr.push(i);
+        }
+      }
     }
     ed._byNumber = byNumber;
     ed._bookId = bookId;
     ed._lang = lang || 'eng';
+    if (postings) ed._postings = postings;
   }
 
   function getHadith(bookId, number, lang) {

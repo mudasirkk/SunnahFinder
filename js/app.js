@@ -373,17 +373,28 @@
       el.innerHTML =
         '<p class="no-results">No matches for <b>' + esc(q) + '</b> in the selected collections.</p>' +
         '<ul class="no-results-tips">' +
-          '<li>Try fewer or more general words (search uses AND: every word must appear).</li>' +
+          '<li>Try fewer or more general words (every meaningful word must appear; filler words like “to” and “of” are ignored).</li>' +
           '<li>Add more collections above.</li>' +
           '<li>Looking for a specific hadith? Type e.g. <code>muslim 2564</code>.</li>' +
         '</ul>';
       return;
     }
-    const items = results.map((r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420), '', r.lang)).join('');
-    el.innerHTML =
-      '<p class="result-count">' + results.length + (results.length === RESULT_LIMIT ? '+' : '') +
-      ' result' + (results.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
-      scope.map((id) => esc(D.bookById(id).short)).join(', ') + '</p>' + items;
+    const strict = results.filter((r) => !r.partial);
+    const partial = results.filter((r) => r.partial);
+    const card = (r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420), '', r.lang);
+    let html;
+    if (strict.length) {
+      html = '<p class="result-count">' + strict.length + (results.length === RESULT_LIMIT ? '+' : '') +
+        ' result' + (strict.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
+        scope.map((id) => esc(D.bookById(id).short)).join(', ') + '</p>' + strict.map(card).join('');
+    } else {
+      html = '<p class="result-count">No hadith contain every word of <b>' + esc(q) + '</b> — closest matches below.</p>';
+    }
+    if (partial.length) {
+      html += '<p class="result-count partial-divider">Close matches <span class="muted">— one of your words is missing from these</span>:</p>' +
+        partial.map(card).join('');
+    }
+    el.innerHTML = html;
     bindCardCopies(el);
   }
 
