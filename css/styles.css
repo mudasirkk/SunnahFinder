@@ -498,4 +498,23 @@ code, kbd {
   .result { padding: 0.75rem 0.85rem; }
   .result-head { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
   .site-footer { font-size: 0.8rem; }
+
+  /* settings: full-width sheet under the header instead of a 250px dropdown */
+  .settings-panel {
+    position: fixed;
+    left: 0.6rem;
+    right: 0.6rem;
+    top: 3.6rem;
+    width: auto;
+    max-height: calc(100vh - 4.5rem);
+    overflow-y: auto;
+    padding: 1rem 1.1rem;
+  }
+  .settings-panel select { padding: 0.65rem 0.6rem; font-size: 16px; }
+  .settings-panel label { font-size: 0.9rem; margin-bottom: 0.8rem; }
+
+  /* filters: stack, full-width narrator box, bigger grade chips */
+  .filters { gap: 0.45rem; }
+  .filters input { flex: 1 1 100%; font-size: 16px; padding: 0.55rem 0.9rem; }
+  .chip-sm { font-size: 0.82rem; padding: 0.6rem 0.95rem; }
 }
