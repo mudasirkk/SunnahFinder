@@ -14,6 +14,13 @@ the major collections right in your browser.
 - **Real full-text search** with phrase support (`"best among you"`),
   match highlighting, and relevance ranking. Every word must match (AND), so
   results stay on-topic.
+- **Arabic search** — type a query in Arabic script (e.g. `الأعمال بالنيات`)
+  and it searches the Arabic texts of the selected collections, with hamza
+  and diacritic differences folded away and results shown right-to-left.
+- **Transliteration-aware search** — `salah`, `salat` or `salaat` all match,
+  and common transliterated terms also match the word the translations use
+  (`wudu` finds "ablution", `sawm` finds "fasting"). These equivalences only
+  widen the *search*; the displayed texts remain verbatim.
 - **Nine collections**: Sahih al-Bukhari, Sahih Muslim, Sunan an-Nasa'i,
   Sunan Abi Dawud, Jami` at-Tirmidhi, Sunan Ibn Majah, Muwatta Malik, the
   Forty Hadith of an-Nawawi, and the Forty Hadith Qudsi. Pick which ones to

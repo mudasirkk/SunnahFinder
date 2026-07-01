@@ -40,8 +40,8 @@
     qudsi: ['qudsi', 'qudsi40', 'hadith qudsi', '40 qudsi'],
   };
 
-  const memory = new Map();      // bookId -> edition object (parsed JSON)
-  const inflight = new Map();    // bookId -> Promise
+  const memory = new Map();      // "lang:bookId" -> edition object (parsed JSON)
+  const inflight = new Map();    // "lang:bookId" -> Promise
 
   function bookById(id) {
     return BOOKS.find((b) => b.id === id) || null;
@@ -75,34 +75,43 @@
     throw lastErr || new Error('Failed to fetch ' + path);
   }
 
-  /** Load a full English edition (one-time ~1–5 MB, then cached). */
-  function loadEdition(bookId) {
-    if (memory.has(bookId)) return Promise.resolve(memory.get(bookId));
-    if (inflight.has(bookId)) return inflight.get(bookId);
-    const p = cachedFetch('/editions/eng-' + bookId + '.min.json')
+  /**
+   * Load a full edition (one-time ~1–5 MB, then cached).
+   * lang 'eng' loads the English translation; 'ara' loads the Arabic text in
+   * its search-friendly variant (ara-{book}1: diacritics already removed).
+   */
+  function loadEdition(bookId, lang) {
+    lang = lang || 'eng';
+    const key = lang + ':' + bookId;
+    if (memory.has(key)) return Promise.resolve(memory.get(key));
+    if (inflight.has(key)) return inflight.get(key);
+    const path = lang === 'ara'
+      ? '/editions/ara-' + bookId + '1.min.json'
+      : '/editions/eng-' + bookId + '.min.json';
+    const p = cachedFetch(path)
       .then((ed) => {
-        indexEdition(bookId, ed);
-        memory.set(bookId, ed);
-        inflight.delete(bookId);
+        indexEdition(bookId, ed, lang);
+        memory.set(key, ed);
+        inflight.delete(key);
         return ed;
       })
-      .catch((e) => { inflight.delete(bookId); throw e; });
-    inflight.set(bookId, p);
+      .catch((e) => { inflight.delete(key); throw e; });
+    inflight.set(key, p);
     return p;
   }
 
-  function isLoaded(bookId) {
-    return memory.has(bookId);
+  function isLoaded(bookId, lang) {
+    return memory.has((lang || 'eng') + ':' + bookId);
   }
 
   /** The already-downloaded edition object, or null if not loaded yet. */
-  function getEditionSync(bookId) {
-    return memory.get(bookId) || null;
+  function getEditionSync(bookId, lang) {
+    return memory.get((lang || 'eng') + ':' + bookId) || null;
   }
 
   /* Precompute per-hadith normalized text and a number->index map so
    * searches and lookups are O(1)-ish after the first load. */
-  function indexEdition(bookId, ed) {
+  function indexEdition(bookId, ed, lang) {
     const byNumber = new Map();
     for (let i = 0; i < ed.hadiths.length; i++) {
       const h = ed.hadiths[i];
@@ -111,10 +120,11 @@
     }
     ed._byNumber = byNumber;
     ed._bookId = bookId;
+    ed._lang = lang || 'eng';
   }
 
-  function getHadith(bookId, number) {
-    const ed = memory.get(bookId);
+  function getHadith(bookId, number, lang) {
+    const ed = memory.get((lang || 'eng') + ':' + bookId);
     if (!ed) return null;
     const idx = ed._byNumber.get(String(number));
     if (idx === undefined) return null;
@@ -198,7 +208,9 @@
     const A = tokensOf(got.hadith);
     if (A.size < 4) return [];
     const out = [];
-    for (const [bId, ed] of memory) {
+    for (const ed of memory.values()) {
+      if (ed._lang !== 'eng') continue; // parallels are compared on the translations
+      const bId = ed._bookId;
       for (const h of ed.hadiths) {
         if (bId === bookId && h === got.hadith) continue;
         const B = tokensOf(h);
@@ -214,7 +226,7 @@
   }
 
   function loadedBookIds() {
-    return Array.from(memory.keys());
+    return Array.from(memory.values()).filter((ed) => ed._lang === 'eng').map((ed) => ed._bookId);
   }
 
   /** Parse a reference query like "bukhari 5062" / "muslim #1". Returns {bookId, number} or null. */

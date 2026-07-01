@@ -15,9 +15,98 @@
       .replace(/[ً-ٰٟـ]/g, '') // Arabic harakat + tatweel
       .replace(/[،؛؟٪٫٬٭۔]/g, ' ') // Arabic punctuation
       .replace(/['’‘`´]/g, '')   // apostrophes: nasa'i -> nasai
+      .replace(/ة/g, 'ه')        // ta marbuta -> ha
+      .replace(/ى/g, 'ي')        // alif maqsura -> ya
       .replace(/[^a-z0-9؀-ۿ]+/g, ' ') // keep latin, digits, arabic
       .replace(/\s+/g, ' ')
       .trim();
+  }
+  // Note: NFD + the harakat strip above also folds hamza carriers (أ إ آ ؤ ئ)
+  // to their base letters, so queries match regardless of hamza/diacritics.
+
+  const ARABIC_RE = /[؀-ۿ]/;
+
+  /* Transliteration equivalences, applied at query time only (never to the
+   * displayed texts): common Latin spellings of the same Arabic word, plus
+   * the word the English translations typically use. A query for any member
+   * of a group also matches the others. */
+  const EQUIV_GROUPS = [
+    ['salah', 'salat', 'salaat', 'salaah', 'prayer'],
+    ['wudu', 'wudhu', 'wuzu', 'ablution'],
+    ['ghusl', 'ghusul'],
+    ['sawm', 'siyam', 'fasting'],
+    ['zakat', 'zakah', 'zakaat'],
+    ['sadaqah', 'sadaqa', 'charity', 'alms'],
+    ['hajj', 'pilgrimage'],
+    ['umrah', 'umra'],
+    ['dua', 'duaa', 'supplication', 'invocation'],
+    ['dhikr', 'zikr', 'remembrance'],
+    ['quran', 'koran', 'quraan'],
+    ['masjid', 'mosque'],
+    ['jumuah', 'jumah', 'friday'],
+    ['jannah', 'jannat', 'paradise'],
+    ['jahannam', 'hellfire'],
+    ['shaytan', 'shaitan', 'satan', 'devil'],
+    ['iman', 'eman', 'faith'],
+    ['kufr', 'disbelief'],
+    ['nikah', 'marriage'],
+    ['talaq', 'divorce'],
+    ['riba', 'usury'],
+    ['halal', 'lawful', 'permissible'],
+    ['haram', 'unlawful', 'forbidden'],
+    ['rasul', 'rasool', 'messenger'],
+    ['nabi', 'prophet'],
+    ['sahaba', 'companions'],
+    ['ramadan', 'ramadhan', 'ramazan'],
+    ['kaba', 'kaaba'],
+    ['qibla', 'qiblah'],
+    ['miswak', 'siwak'],
+    ['sunnah', 'sunna'],
+    ['hadith', 'hadeeth'],
+    ['deen', 'religion'],
+    ['dunya', 'duniya'],
+    ['akhirah', 'hereafter'],
+    ['tawbah', 'tauba', 'repentance'],
+    ['sabr', 'patience'],
+    ['taqwa', 'piety'],
+    ['jihad', 'jihaad'],
+    ['ilm', 'knowledge'],
+    ['salam', 'salaam'],
+    ['janazah', 'funeral'],
+    ['suhur', 'sahur', 'sahoor'],
+    ['khutbah', 'khutba', 'sermon'],
+    ['imam', 'imaam'],
+    ['adhan', 'azan', 'athan'],
+    ['iqamah', 'iqama'],
+    ['qadr', 'decree'],
+    ['barakah', 'baraka', 'blessing'],
+    ['shirk', 'polytheism'],
+    ['tawhid', 'tawheed', 'tauheed', 'monotheism'],
+    ['aqiqah', 'aqiqa', 'aqeeqah'],
+    ['mahr', 'dowry'],
+    ['khamr', 'wine'],
+    ['zuhr', 'dhuhr', 'duhr', 'zohr'],
+    ['fajr', 'dawn'],
+    ['maghrib', 'sunset'],
+    ['isha', 'ishaa'],
+    ['witr', 'vitr'],
+    ['tahajjud'],
+    ['laylatul', 'laylat'],
+  ];
+  const EQUIV = new Map();
+  for (const g of EQUIV_GROUPS) for (const w of g) EQUIV.set(w, g);
+
+  /** All the strings a Latin query term should match: itself, its
+   * de-doubled-vowel form (salaah -> salah), and equivalence-group members. */
+  function expandTerm(term) {
+    const out = new Set([term]);
+    const folded = term.replace(/([aeiou])\1+/g, '$1');
+    out.add(folded);
+    for (const t of [term, folded]) {
+      const g = EQUIV.get(t);
+      if (g) for (const w of g) out.add(w);
+    }
+    return Array.from(out);
   }
 
   /** Split a raw query into { phrases: [...], terms: [...] } (all normalized). */
@@ -55,30 +144,44 @@
     if (!phrases.length && !terms.length) return [];
     const results = [];
     for (const ed of editions) {
+      // Match Arabic query parts against Arabic editions and Latin parts
+      // against English ones; a mixed query uses each part where it applies.
+      const isAr = ed._lang === 'ara';
+      const edPhrases = phrases.filter((p) => ARABIC_RE.test(p) === isAr);
+      const edTerms = terms.filter((t) => ARABIC_RE.test(t) === isAr);
+      if (!edPhrases.length && !edTerms.length) continue;
+      const needleSets = edTerms.map((t) => (isAr ? [t] : expandTerm(t)));
+
       for (const h of ed.hadiths) {
         const t = h._norm;
         if (!t) continue;
         let score = 0;
         let ok = true;
-        for (const p of phrases) {
+        for (const p of edPhrases) {
           const c = countOccurrences(t, p);
           if (!c) { ok = false; break; }
           score += 12 * c;
         }
         if (!ok) continue;
-        for (const term of terms) {
-          const idx = t.indexOf(term);
-          if (idx === -1) { ok = false; break; }
-          // whole-word matches score higher than substring matches
-          const wordHit = (' ' + t + ' ').includes(' ' + term + ' ');
-          score += wordHit ? 6 : 2;
-          score += Math.min(countOccurrences(t, term) - 1, 3);
-          if (idx < 120) score += 1; // matches near the narration head read better
+        for (const needles of needleSets) {
+          let best = 0;
+          for (const needle of needles) {
+            const idx = t.indexOf(needle);
+            if (idx === -1) continue;
+            // whole-word matches score higher than substring matches
+            const wordHit = (' ' + t + ' ').includes(' ' + needle + ' ');
+            let s = wordHit ? 6 : 2;
+            s += Math.min(countOccurrences(t, needle) - 1, 3);
+            if (idx < 120) s += 1; // matches near the narration head read better
+            if (s > best) best = s;
+          }
+          if (!best) { ok = false; break; }
+          score += best;
         }
         if (!ok) continue;
         // Mild preference for concise hadith over very long ones, as a tiebreak.
         score += Math.max(0, 3 - t.length / 2000);
-        results.push({ bookId: ed._bookId, hadith: h, score });
+        results.push({ bookId: ed._bookId, lang: ed._lang, hadith: h, score });
       }
     }
     results.sort((a, b) => b.score - a.score || Number(a.hadith.hadithnumber) - Number(b.hadith.hadithnumber));
@@ -94,16 +197,24 @@
   /** Ranges of [start, end) in `text` where any term/phrase matches, on normalized-ish boundaries. */
   function matchRanges(text, rawQuery) {
     const { phrases, terms } = parseQuery(rawQuery);
-    const needles = phrases.concat(terms).filter(Boolean).sort((a, b) => b.length - a.length);
+    const expanded = [];
+    for (const t of terms) {
+      for (const n of (ARABIC_RE.test(t) ? [t] : expandTerm(t))) expanded.push(n);
+    }
+    const needles = phrases.concat(expanded).filter(Boolean).sort((a, b) => b.length - a.length);
     if (!needles.length) return [];
     const lower = normalize(text);
     // Map normalized offsets back to original offsets by normalizing char-by-char.
     // Simpler robust approach: run regex over the original text with a loose pattern.
     const ranges = [];
     for (const n of needles) {
+      // Between characters, tolerate apostrophes, Latin accents and Arabic
+      // harakat/tatweel; folded Arabic letters match all their original forms,
+      // so highlights land on the original (diacritized) text.
+      const AR_FOLD = { 'ا': '[اأإآٱ]', 'ي': '[يىئ]', 'ه': '[هة]', 'و': '[وؤ]' };
       const pattern = n
         .split(' ')
-        .map((w) => w.split('').map((ch) => escapeRegex(ch)).join("['’‘`´\\u0300-\\u036f]*"))
+        .map((w) => w.split('').map((ch) => AR_FOLD[ch] || escapeRegex(ch)).join("['’‘`´\\u0300-\\u036f\\u064b-\\u065f\\u0670\\u0640]*"))
         .join("[^a-z0-9\\u0600-\\u06ff]+");
       let re;
       try { re = new RegExp(pattern, 'gi'); } catch (e) { continue; }

@@ -229,6 +229,12 @@ code, kbd {
   white-space: nowrap;
 }
 .result-text { margin: 0; }
+.result-text-ar {
+  font-family: var(--arabic-font);
+  font-size: 1.25rem;
+  line-height: 2;
+  text-align: right;
+}
 .quiet-link { color: inherit; }
 .quiet-link:hover { text-decoration: none; }
 

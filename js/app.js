@@ -88,7 +88,8 @@
           'value="' + esc(value || '') + '" aria-label="Search hadith">' +
         '<button type="submit" class="search-btn">Search</button>' +
       '</form>' +
-      '<p class="search-hint">Tip: use <code>&quot;quotes&quot;</code> for exact phrases · type a collection + number to jump straight to it · press <kbd>/</kbd> to focus</p>'
+      '<p class="search-hint">Search in English, Arabic (<span dir="rtl" lang="ar">النية</span>) or transliteration (salah, wudu, zakat) · ' +
+      '<code>&quot;quotes&quot;</code> for exact phrases · collection + number (e.g. <code>bukhari 5062</code>) jumps straight there · <kbd>/</kbd> focuses</p>'
     );
   }
 
@@ -249,19 +250,21 @@
 
   /* ---------- hadith cards (search results, chapter lists, parallels) ---------- */
 
-  function cardHtml(bookId, h, bodyHtml, badge) {
+  function cardHtml(bookId, h, bodyHtml, badge, lang) {
     const link = href({ view: 'hadith', bookId, number: String(h.hadithnumber) });
+    const rtl = lang === 'ara';
     return (
       '<article class="result">' +
         '<header class="result-head">' +
           '<a class="result-ref" href="' + link + '">' + refLabel(bookId, h) + '</a>' +
           '<span class="result-meta">' +
             (badge || '') + gradesHtml(bookId, h) +
-            '<button type="button" class="card-copy" data-book="' + bookId + '" data-num="' + esc(String(h.hadithnumber)) + '" ' +
+            '<button type="button" class="card-copy" data-book="' + bookId + '" data-num="' + esc(String(h.hadithnumber)) + '" data-lang="' + (rtl ? 'ara' : 'eng') + '" ' +
               'title="Copy this hadith (text, grade and source link)">Copy</button>' +
           '</span>' +
         '</header>' +
-        '<p class="result-text"><a class="quiet-link" href="' + link + '">' + bodyHtml + '</a></p>' +
+        '<p class="result-text' + (rtl ? ' result-text-ar" dir="rtl" lang="ar' : '') + '">' +
+          '<a class="quiet-link" href="' + link + '">' + bodyHtml + '</a></p>' +
       '</article>'
     );
   }
@@ -269,19 +272,20 @@
   function bindCardCopies(rootEl) {
     (rootEl || document).querySelectorAll('.card-copy').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const got = D.getHadith(btn.dataset.book, btn.dataset.num);
+        const got = D.getHadith(btn.dataset.book, btn.dataset.num, btn.dataset.lang || 'eng');
         if (got) copy(plainCopy(btn.dataset.book, got.hadith, null), btn);
       });
     });
   }
 
   /* Loading panel while editions download. */
-  function loadingHtml(ids) {
+  function loadingHtml(ids, lang) {
     const rows = ids.map((id) => {
       const b = D.bookById(id);
-      const done = D.isLoaded(id);
+      const done = D.isLoaded(id, lang);
       return '<li data-load="' + id + '" class="' + (done ? 'done' : '') + '">' +
-        esc(b.name) + ' <span class="load-state">' + (done ? '✓' : '~' + b.approxMB + ' MB…') + '</span></li>';
+        esc(b.name) + (lang === 'ara' ? ' (Arabic text)' : '') +
+        ' <span class="load-state">' + (done ? '✓' : '~' + b.approxMB + ' MB…') + '</span></li>';
     }).join('');
     return (
       '<div class="loading-panel">' +
@@ -292,9 +296,9 @@
     );
   }
 
-  function ensureLoaded(ids) {
+  function ensureLoaded(ids, lang) {
     return Promise.all(ids.map((id) =>
-      D.loadEdition(id).then(() => {
+      D.loadEdition(id, lang).then(() => {
         const li = document.querySelector('[data-load="' + id + '"]');
         if (li) {
           li.classList.add('done');
@@ -323,8 +327,9 @@
         '<div class="examples">Try: ' +
           '<a href="#/search?q=intentions">intentions</a>' +
           '<a href="#/search?q=%22best+among+you%22">"best among you"</a>' +
+          '<a href="#/search?q=wudu">wudu</a>' +
+          '<a href="#/search?q=%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84%20%D8%A8%D8%A7%D9%84%D9%86%D9%8A%D8%A7%D8%AA" dir="rtl" lang="ar">الأعمال بالنيات</a>' +
           '<a href="#/b/bukhari/5062">bukhari 5062</a>' +
-          '<a href="#/search?q=kindness+to+parents">kindness to parents</a>' +
         '</div>' +
         scopeChipsHtml(scope) +
       '</section>' +
@@ -337,19 +342,22 @@
     const q = route.q;
     if (route.in && route.in.length) setScope(route.in.filter((id) => D.bookById(id)));
     const scope = getScope();
+    // Arabic-script queries search the Arabic editions; everything else
+    // (English or transliteration) searches the translations.
+    const lang = /[؀-ۿ]/.test(q) ? 'ara' : 'eng';
     app.innerHTML =
       '<section class="search-page">' +
         searchBarHtml(q, false) +
         scopeChipsHtml(scope) +
-        '<div id="results">' + loadingHtml(scope.filter((id) => !D.isLoaded(id))) + '</div>' +
+        '<div id="results">' + loadingHtml(scope.filter((id) => !D.isLoaded(id, lang)), lang) + '</div>' +
       '</section>';
     bindSearchControls(scope, q);
 
-    ensureLoaded(scope).then(() => {
+    ensureLoaded(scope, lang).then(() => {
       // The user may have navigated away while editions were downloading.
       const now = parseRoute();
       if (now.view !== 'search' || now.q !== q) return;
-      const eds = scope.map((id) => D.getEditionSync(id)).filter(Boolean);
+      const eds = scope.map((id) => D.getEditionSync(id, lang)).filter(Boolean);
       const results = S.search(eds, q, RESULT_LIMIT);
       renderResults(q, results, scope);
     }).catch((e) => {
@@ -371,7 +379,7 @@
         '</ul>';
       return;
     }
-    const items = results.map((r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420))).join('');
+    const items = results.map((r) => cardHtml(r.bookId, r.hadith, S.highlight(r.hadith.text, q, 420), '', r.lang)).join('');
     el.innerHTML =
       '<p class="result-count">' + results.length + (results.length === RESULT_LIMIT ? '+' : '') +
       ' result' + (results.length === 1 ? '' : 's') + ' for <b>' + esc(q) + '</b> in ' +
