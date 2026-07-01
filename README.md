@@ -12,8 +12,17 @@ the major collections right in your browser.
   reference like `bukhari 5062` / `muslim 1` / `abu dawud 4290` to jump
   straight to that hadith.
 - **Real full-text search** with phrase support (`"best among you"`),
-  match highlighting, and relevance ranking. Every word must match (AND), so
-  results stay on-topic.
+  match highlighting, and relevance ranking. Every meaningful word must
+  appear as a whole word — filler words ("to", "of") are ignored, terms
+  never match fragments inside other words, and light stemming makes
+  "kindness" match "kind"/"kindly". Ranking favors hadith where your words
+  appear close together and hadith filed under a matching chapter title.
+  When few hadith contain every word, near misses appear under a labeled
+  "Close matches" section.
+- **Filters** — narrow results by narrator (matches the narration's
+  attribution line, e.g. "Aisha") and by grade classification
+  (Sahih / Hasan / Da'if / ungraded). Filters live in the URL, so filtered
+  searches are shareable.
 - **Arabic search** — type a query in Arabic script (e.g. `الأعمال بالنيات`)
   and it searches the Arabic texts of the selected collections, with hamza
   and diacritic differences folded away and results shown right-to-left.
@@ -47,8 +56,11 @@ the major collections right in your browser.
 - **Shareable URLs** — every search and every hadith has a stable `#/…` link.
 - **Offline-friendly** — collections download once (~1–5 MB each) and are
   cached in your browser, so repeat searches are instant and work offline.
+- **Settings** — theme (auto/light/dark) plus separate English and Arabic
+  font choices (loaded from Google Fonts on demand). Your chosen fonts are
+  embedded when you use "Copy for Docs", so pasted text keeps the same look.
 - **Mobile-friendly** — responsive layout, comfortable touch targets, no
-  horizontal scrolling, dark mode, `/` focuses the search box on desktop.
+  horizontal scrolling, `/` focuses the search box on desktop.
 
 ## Running it
 
