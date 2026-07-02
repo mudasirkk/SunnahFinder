@@ -51,6 +51,12 @@ the major collections right in your browser.
   in the downloaded collections by mechanical text-overlap matching (the
   match percentage is shown). The linked texts are verbatim; nothing is
   inferred or written by the app.
+- **Fath al-Bari** — Ibn Hajar al-Asqalani's classic Arabic commentary
+  (*sharh*) on Sahih al-Bukhari is included as its own browsable,
+  searchable collection (all 13 volumes). Because it's a large book
+  (~33 MB), it only downloads if you select it. On any Bukhari hadith, a
+  "Fath al-Bari" link searches the commentary for that hadith's wording —
+  a text search, not a curated per-hadith mapping.
 - **Explanations & commentary links** — each hadith page links out to the
   same hadith (or a targeted search for it) on established sites:
   Sunnah.com (isnad, alternative translations), Dorar.net (Arabic takhrij
@@ -103,6 +109,13 @@ sign up for. It also works on any static host (GitHub Pages, Netlify, etc.).
   sunnah.com's `hisn` collection (verified against anchor duas #1, #2, #75),
   and its Arabic was cross-checked verbatim against an independent Hisn
   al-Muslim dataset (rn0x/Adhkar-json) to confirm fidelity.
+- Fath al-Bari's Arabic text is the cleaned edition from the
+  [OpenITI corpus](https://github.com/OpenITI/RELEASE) (book URI
+  `0852IbnHajarCasqalani.FathBari`, from Shamela 1673), snapshotted by
+  `tools/build-fathbari.mjs` into `data/fathbari.json`. The build only strips
+  OpenITI markup and groups the book's own section headers into its 13
+  printed volumes; the text is verbatim. It is not mapped to individual
+  Bukhari hadith numbers (no such mapping exists).
 - Search runs entirely client-side (`js/search.js`): text is normalized
   (case, accents, apostrophes, Arabic diacritics), queries support quoted
   phrases, and results are ranked by whole-word/phrase/position scoring.

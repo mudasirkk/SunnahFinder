@@ -17,7 +17,11 @@ static server (`http-server -p 8099 -s`) — there is nothing to compile.
    a sunnah.com scrape; books with `src: 'hj'`); or, for Hisn al-Muslim,
    wafaaelmaandy/Hisn-Muslim-Json, snapshotted by `tools/build-hisn.mjs`
    into the committed static file `data/hisn.json` (books with
-   `src: 'snapshot'`). Search expansions, similarity matching and external
+   `src: 'snapshot'`); or, for Fath al-Bari, the OpenITI corpus
+   (`0852IbnHajarCasqalani.FathBari`), snapshotted by
+   `tools/build-fathbari.mjs` into `data/fathbari.json` (Arabic-only,
+   `araOnly`, `commentaryOf: 'bukhari'` — a Bukhari hadith offers an in-app
+   search of it, not a curated per-hadith mapping). Search expansions, similarity matching and external
    links may guide *finding*; they must never alter or fabricate *content*.
    hadith-json numbering: books whose chapter id 0 sits at the end of the
    file get chapter-resorted + renumbered to match sunnah.com (see

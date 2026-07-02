@@ -800,10 +800,33 @@
 
   /* Links to the same hadith (or a targeted search for it) on trusted external
    * sites. We only link out — no commentary is generated or excerpted here. */
+  /* If a commentary (sharh) of this collection is available in the app
+   * (e.g. Fath al-Bari for al-Bukhari), offer an in-app search of it for
+   * this hadith's Arabic wording. This locates the commentary passage by
+   * matching text — it is not a curated per-hadith mapping. */
+  function commentaryLink(bookId, arabicText) {
+    const comm = D.BOOKS.find((b) => b.commentaryOf === bookId);
+    if (!comm || !arabicText) return null;
+    // Search the commentary for this hadith's most distinctive words (longest,
+    // de-duplicated). Ibn Hajar quotes each hadith, so requiring several of its
+    // rare words to co-occur lands on the passage discussing it.
+    const words = Array.from(new Set(window.SFSearch.normalize(arabicText).split(' ').filter((w) => w.length >= 5)));
+    if (words.length < 3) return null;
+    words.sort((a, b) => b.length - a.length);
+    const q = words.slice(0, 4).join(' ');
+    return {
+      href: href({ view: 'search', q: q, in: [comm.id] }),
+      label: comm.name + ' — Ibn Hajar’s commentary on this hadith',
+      detail: 'searches ' + comm.short + '’s Arabic text for this hadith’s wording (' + comm.approxMB + ' MB, one-time)',
+    };
+  }
+
   function renderExplainLinks(bookId, hadith, sunnahUrl, arabicText) {
     const ul = document.getElementById('explain-links');
     if (!ul) return;
     const links = [];
+    const comm = commentaryLink(bookId, arabicText);
+    if (comm) links.push({ url: comm.href, label: comm.label, detail: comm.detail, internal: true });
     if (sunnahUrl) {
       links.push({ url: sunnahUrl, label: 'Sunnah.com — this hadith', detail: 'full isnad, alternative translations and in-book references' });
     } else {
@@ -825,7 +848,8 @@
       label: 'IslamQA.info — search fatwas citing this hadith', detail: 'scholarly answers that reference this narration',
     });
     ul.innerHTML = links.map((l) =>
-      '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.label) + ' ↗</a>' +
+      '<li><a href="' + esc(l.url) + '"' + (l.internal ? '' : ' target="_blank" rel="noopener"') + '>' +
+      esc(l.label) + (l.internal ? '' : ' ↗') + '</a>' +
       '<span class="muted"> — ' + esc(l.detail) + '</span></li>'
     ).join('');
   }

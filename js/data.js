@@ -47,8 +47,10 @@
     { id: 'dehlawi',  name: 'Forty Hadith of Shah Waliullah Dehlawi', short: 'Dehlawi 40', approxMB: 0.1, sunnah: 'shahwaliullah40' },
     /* SNAPSHOT-BOOKS:begin */
     /* Books snapshotted to a static data/<id>.json by a tools/ build script
-     * (src: 'snapshot'). Hisn al-Muslim is built by tools/build-hisn.mjs. */
+     * (src: 'snapshot'). Hisn built by tools/build-hisn.mjs; Fath al-Bari
+     * (Ibn Hajar's Arabic commentary on al-Bukhari) by tools/build-fathbari.mjs. */
     { id: 'hisn', name: 'Hisn al-Muslim', short: 'Hisn', approxMB: 0.3, sunnah: 'hisn', src: 'snapshot' },
+    { id: 'fathbari', name: 'Fath al-Bari (Ibn Hajar)', short: 'Fath al-Bari', approxMB: 33, sunnah: null, src: 'snapshot', araOnly: true, commentaryOf: 'bukhari' },
     /* SNAPSHOT-BOOKS:end */
   ];
 
@@ -72,6 +74,7 @@
     bulugh: ['bulugh', 'bulugh al-maram', 'bulughul maram', 'bulugh maram'],
     mishkat: ['mishkat', 'mishkat al-masabih', 'mishkath', 'mishkaat'],
     hisn: ['hisn', 'hisnul muslim', 'hisn al-muslim', 'hisnul-muslim', 'fortress', 'fortress of the muslim', 'husn'],
+    fathbari: ['fathbari', 'fath al-bari', 'fathul bari', 'fath ul bari', 'fath albari', 'ibn hajar', 'sharh bukhari'],
   };
 
   const memory = new Map();      // "lang:bookId" -> edition object (parsed JSON)
