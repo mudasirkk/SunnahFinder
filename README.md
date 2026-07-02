@@ -30,14 +30,14 @@ the major collections right in your browser.
   and common transliterated terms also match the word the translations use
   (`wudu` finds "ablution", `sawm` finds "fasting"). These equivalences only
   widen the *search*; the displayed texts remain verbatim.
-- **Seventeen collections** — the same set sunnah.com offers (minus the
-  Hisn al-Muslim du'a book): Sahih al-Bukhari, Sahih Muslim, Sunan
-  an-Nasa'i, Sunan Abi Dawud, Jami` at-Tirmidhi, Sunan Ibn Majah, Muwatta
-  Malik, Musnad Ahmad, Sunan ad-Darimi (Arabic only, as on the source),
-  Riyad as-Salihin, Al-Adab Al-Mufrad, Shama'il Muhammadiyah, Bulugh
-  al-Maram, Mishkat al-Masabih, and the three forty-hadith compilations
-  (Nawawi, Qudsi, Shah Waliullah). Pick collections with one tap, or use
-  the Select all / Clear all toggle.
+- **Eighteen collections** — the full set sunnah.com offers: Sahih
+  al-Bukhari, Sahih Muslim, Sunan an-Nasa'i, Sunan Abi Dawud, Jami`
+  at-Tirmidhi, Sunan Ibn Majah, Muwatta Malik, Musnad Ahmad, Sunan
+  ad-Darimi (Arabic only, as on the source), Riyad as-Salihin, Al-Adab
+  Al-Mufrad, Shama'il Muhammadiyah, Bulugh al-Maram, Mishkat al-Masabih,
+  Hisn al-Muslim, and the three forty-hadith compilations (Nawawi, Qudsi,
+  Shah Waliullah). Pick collections with one tap, or use the Select all /
+  Clear all toggle.
 - **Hadith pages** show the Arabic text alongside the English translation,
   the chapter it belongs to, scholars' authenticity gradings (Sahih / Hasan /
   Da'if, color-coded), previous/next navigation, copy-text and copy-link
@@ -95,6 +95,14 @@ sign up for. It also works on any static host (GitHub Pages, Netlify, etc.).
   re-sorted and hadith renumbered to match sunnah.com's numbering — verified
   against known anchor hadith. The second source records no gradings, so
   those books show none.
+- Hisn al-Muslim (Fortress of the Muslim) comes from a third pinned source,
+  [wafaaelmaandy/Hisn-Muslim-Json](https://github.com/wafaaelmaandy/Hisn-Muslim-Json)
+  (the complete bilingual book by Sa'id al-Qahtani, 132 chapters / 267
+  supplications). It is snapshotted once by `tools/build-hisn.mjs` and
+  committed as the static file `data/hisn.json`. Its numbering matches
+  sunnah.com's `hisn` collection (verified against anchor duas #1, #2, #75),
+  and its Arabic was cross-checked verbatim against an independent Hisn
+  al-Muslim dataset (rn0x/Adhkar-json) to confirm fidelity.
 - Search runs entirely client-side (`js/search.js`): text is normalized
   (case, accents, apostrophes, Arabic diacritics), queries support quoted
   phrases, and results are ranked by whole-word/phrase/position scoring.

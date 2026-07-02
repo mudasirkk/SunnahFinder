@@ -20,6 +20,8 @@
     'https://cdn.jsdelivr.net/gh/AhmedBaset/hadith-json@v1.2.0/db/by_book',
     'https://raw.githubusercontent.com/AhmedBaset/hadith-json/v1.2.0/db/by_book',
   ];
+  // Pre-converted books committed under /data (see tools/), served same-origin.
+  const SNAPSHOT_BASE = ['data'];
 
   const CACHE_NAME = 'sunnahfinder-data-v1';
 
@@ -43,6 +45,11 @@
     { id: 'nawawi',   name: 'Forty Hadith of an-Nawawi', short: 'Nawawi 40', approxMB: 0.1, sunnah: 'nawawi40' },
     { id: 'qudsi',    name: 'Forty Hadith Qudsi',      short: 'Qudsi 40',  approxMB: 0.1, sunnah: 'qudsi40' },
     { id: 'dehlawi',  name: 'Forty Hadith of Shah Waliullah Dehlawi', short: 'Dehlawi 40', approxMB: 0.1, sunnah: 'shahwaliullah40' },
+    /* SNAPSHOT-BOOKS:begin */
+    /* Books snapshotted to a static data/<id>.json by a tools/ build script
+     * (src: 'snapshot'). Hisn al-Muslim is built by tools/build-hisn.mjs. */
+    { id: 'hisn', name: 'Hisn al-Muslim', short: 'Hisn', approxMB: 0.3, sunnah: 'hisn', src: 'snapshot' },
+    /* SNAPSHOT-BOOKS:end */
   ];
 
   // Accepted spellings when parsing reference queries like "bukhari 5062".
@@ -64,6 +71,7 @@
     shamail: ['shamail', 'shamaail', 'ash-shamail', 'shamail muhammadiyah', 'shama il'],
     bulugh: ['bulugh', 'bulugh al-maram', 'bulughul maram', 'bulugh maram'],
     mishkat: ['mishkat', 'mishkat al-masabih', 'mishkath', 'mishkaat'],
+    hisn: ['hisn', 'hisnul muslim', 'hisn al-muslim', 'hisnul-muslim', 'fortress', 'fortress of the muslim', 'husn'],
   };
 
   const memory = new Map();      // "lang:bookId" -> edition object (parsed JSON)
@@ -111,6 +119,7 @@
     const key = lang + ':' + bookId;
     if (memory.has(key)) return Promise.resolve(memory.get(key));
     const book = bookById(bookId);
+    if (book && book.src === 'snapshot') return loadSnapshot(book).then(() => memory.get(key));
     if (book && book.src === 'hj') return loadHJ(book).then(() => memory.get(key));
     if (inflight.has(key)) return inflight.get(key);
     const path = lang === 'ara'
@@ -139,6 +148,29 @@
           const memKey = lang + ':' + book.id;
           if (!memory.has(memKey)) {
             const ed = convertHJ(raw, lang);
+            indexEdition(book.id, ed, lang);
+            memory.set(memKey, ed);
+          }
+        }
+        inflight.delete(key);
+      })
+      .catch((e) => { inflight.delete(key); throw e; });
+    inflight.set(key, p);
+    return p;
+  }
+
+  /* Snapshot books are pre-converted static files committed in /data
+   * (captured from the sunnah.com API by tools/snapshot-sunnah.mjs). One
+   * file holds both language editions already in this app's edition shape. */
+  function loadSnapshot(book) {
+    const key = 'snap:' + book.id;
+    if (inflight.has(key)) return inflight.get(key);
+    const p = cachedFetch(SNAPSHOT_BASE, '/' + book.id + '.json')
+      .then((raw) => {
+        for (const lang of ['eng', 'ara']) {
+          const memKey = lang + ':' + book.id;
+          if (!memory.has(memKey) && raw[lang]) {
+            const ed = raw[lang];
             indexEdition(book.id, ed, lang);
             memory.set(memKey, ed);
           }
@@ -308,7 +340,8 @@
    * for hadith-json books the Arabic is already in the downloaded file). */
   function loadArabic(bookId, number) {
     const book = bookById(bookId);
-    if (book && book.src === 'hj') {
+    if (book && (book.src === 'hj' || book.src === 'snapshot')) {
+      // Both languages arrive in one file for these; read from memory.
       return loadEdition(bookId, 'ara').then(() => {
         const got = getHadith(bookId, number, 'ara');
         return got ? got.hadith.text : null;
