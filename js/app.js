@@ -185,7 +185,8 @@
       const loaded = D.isLoaded(b.id);
       return (
         '<button type="button" class="chip' + (on ? ' chip-on' : '') + '" data-book="' + b.id + '" ' +
-          'title="' + esc(b.name) + (loaded ? ' (downloaded)' : ' (~' + b.approxMB + ' MB one-time download)') + '">' +
+          'title="' + esc(b.name) + (b.araOnly ? ' — Arabic text only' : '') +
+          (loaded ? ' (downloaded)' : ' (~' + b.approxMB + ' MB one-time download)') + '">' +
           esc(b.short) + (loaded ? ' <span class="chip-check">✓</span>' : '') +
         '</button>'
       );
@@ -368,9 +369,15 @@
 
   function plainCopy(bookId, hadith, arabic) {
     const m = copyMeta(bookId, hadith);
+    // For Arabic-only narrations, make sure the Arabic is in the copy even
+    // when the caller didn't pass it (e.g. result-card copy buttons).
+    if (!arabic && !hadith.text) {
+      const ar = D.getHadith(bookId, hadith.hadithnumber, 'ara');
+      if (ar) arabic = ar.hadith.text;
+    }
     let out = m.ref + '\n\n';
     if (arabic) out += arabic + '\n\n';
-    out += hadith.text + '\n';
+    if (hadith.text) out += hadith.text + '\n';
     if (m.grades) out += '\nGrade: ' + m.grades;
     if (m.sec && m.sec.name) out += '\nChapter: ' + m.sec.number + '. ' + m.sec.name;
     out += '\nSource: ' + m.url;
@@ -381,8 +388,8 @@
     const m = copyMeta(bookId, hadith);
     const quote = (t) => t.split('\n').map((l) => '> ' + l).join('\n');
     let out = '**' + m.ref + '**\n\n';
-    if (arabic) out += quote(arabic) + '\n>\n';
-    out += quote(hadith.text) + '\n\n';
+    if (arabic) out += quote(arabic) + (hadith.text ? '\n>\n' : '\n\n');
+    if (hadith.text) out += quote(hadith.text) + '\n\n';
     if (m.grades) out += '**Grade:** ' + m.grades + '  \n';
     if (m.sec && m.sec.name) out += '**Chapter:** ' + m.sec.number + '. ' + m.sec.name + '  \n';
     out += '**Source:** [' + m.url + '](' + m.url + ')\n';
@@ -398,7 +405,7 @@
     const araStyle = ' style="font-family: ' + ARA_FONTS[s.araFont].css + '; font-size: 1.3em;"';
     let out = '<p' + engStyle + '><strong>' + esc(m.ref) + '</strong></p>';
     if (arabic) out += '<p dir="rtl" lang="ar"' + araStyle + '>' + esc(arabic) + '</p>';
-    out += '<p' + engStyle + '>' + esc(hadith.text).replace(/\n/g, '<br>') + '</p>';
+    if (hadith.text) out += '<p' + engStyle + '>' + esc(hadith.text).replace(/\n/g, '<br>') + '</p>';
     const meta = [];
     if (m.grades) meta.push('<strong>Grade:</strong> ' + esc(m.grades));
     if (m.sec && m.sec.name) meta.push('<strong>Chapter:</strong> ' + esc(m.sec.number + '. ' + m.sec.name));
@@ -649,6 +656,15 @@
 
   function hadithListHtml(bookId, hadiths) {
     return hadiths.map((h) => {
+      // Narrations with no English on the source (e.g. Sunan ad-Darimi)
+      // are listed with their Arabic text instead of an empty card.
+      if (!h.text) {
+        const ar = D.getHadith(bookId, h.hadithnumber, 'ara');
+        if (ar && ar.hadith.text) {
+          const t = ar.hadith.text.length > 260 ? ar.hadith.text.slice(0, 260) + '…' : ar.hadith.text;
+          return cardHtml(bookId, h, esc(t), '', 'ara');
+        }
+      }
       const text = h.text.length > 320 ? h.text.slice(0, 320) + '…' : h.text;
       return cardHtml(bookId, h, esc(text));
     }).join('');
@@ -684,7 +700,9 @@
             '<p class="hadith-grades">' + gradesHtml(b.id, hadith) + '</p>' +
           '</header>' +
           '<div class="hadith-arabic" id="arabic-slot" dir="rtl" lang="ar"><span class="muted">Loading Arabic…</span></div>' +
-          '<div class="hadith-english" lang="en">' + esc(hadith.text) + '</div>' +
+          (hadith.text
+            ? '<div class="hadith-english" lang="en">' + esc(hadith.text) + '</div>'
+            : '<p class="muted">The source has no English translation for this narration; the Arabic text is shown above.</p>') +
           '<footer class="hadith-actions">' +
             '<button type="button" class="action-btn" id="copy-text" title="Plain text: reference, Arabic, translation, grade, source">Copy text</button>' +
             '<button type="button" class="action-btn" id="copy-md" title="Markdown: for notes apps, Obsidian, GitHub…">Copy Markdown</button>' +

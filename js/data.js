@@ -6,9 +6,19 @@
 (function () {
   'use strict';
 
+  /* Two pinned, immutable data sources, each with a CDN + GitHub-raw mirror:
+   * - fawazahmed0/hadith-api@1: the nine-plus-forties collections, with
+   *   per-scholar grades and separate Arabic editions.
+   * - AhmedBaset/hadith-json@v1.2.0: sunnah.com scrape covering the books
+   *   the first source lacks (Ahmad, Darimi, Riyad, Adab, Shamail, Bulugh,
+   *   Mishkat), English + Arabic in one file, no grades. */
   const MIRRORS = [
     'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1',
     'https://raw.githubusercontent.com/fawazahmed0/hadith-api/1',
+  ];
+  const HJ_MIRRORS = [
+    'https://cdn.jsdelivr.net/gh/AhmedBaset/hadith-json@v1.2.0/db/by_book',
+    'https://raw.githubusercontent.com/AhmedBaset/hadith-json/v1.2.0/db/by_book',
   ];
 
   const CACHE_NAME = 'sunnahfinder-data-v1';
@@ -23,6 +33,13 @@
     { id: 'tirmidhi', name: 'Jami` at-Tirmidhi',       short: 'Tirmidhi',  approxMB: 3,   sunnah: 'tirmidhi' },
     { id: 'ibnmajah', name: 'Sunan Ibn Majah',         short: 'Ibn Majah', approxMB: 3,   sunnah: 'ibnmajah' },
     { id: 'malik',    name: 'Muwatta Malik',           short: 'Malik',     approxMB: 1,   sunnah: null },
+    { id: 'ahmad',    name: 'Musnad Ahmad',            short: 'Ahmad',     approxMB: 2,   sunnah: 'ahmad',   src: 'hj', hjPath: 'the_9_books/ahmed' },
+    { id: 'darimi',   name: 'Sunan ad-Darimi',         short: 'Darimi',    approxMB: 3,   sunnah: 'darimi',  src: 'hj', hjPath: 'the_9_books/darimi', araOnly: true },
+    { id: 'riyadussalihin', name: 'Riyad as-Salihin',  short: 'Riyad',     approxMB: 2,   sunnah: 'riyadussalihin', src: 'hj', hjPath: 'other_books/riyad_assalihin' },
+    { id: 'adab',     name: 'Al-Adab Al-Mufrad',       short: 'Adab',      approxMB: 2,   sunnah: 'adab',    src: 'hj', hjPath: 'other_books/aladab_almufrad' },
+    { id: 'shamail',  name: 'Shama’il Muhammadiyah', short: 'Shamail', approxMB: 0.5, sunnah: 'shamail', src: 'hj', hjPath: 'other_books/shamail_muhammadiyah' },
+    { id: 'bulugh',   name: 'Bulugh al-Maram',         short: 'Bulugh',    approxMB: 2,   sunnah: 'bulugh',  src: 'hj', hjPath: 'other_books/bulugh_almaram' },
+    { id: 'mishkat',  name: 'Mishkat al-Masabih',      short: 'Mishkat',   approxMB: 5,   sunnah: 'mishkat', src: 'hj', hjPath: 'other_books/mishkat_almasabih' },
     { id: 'nawawi',   name: 'Forty Hadith of an-Nawawi', short: 'Nawawi 40', approxMB: 0.1, sunnah: 'nawawi40' },
     { id: 'qudsi',    name: 'Forty Hadith Qudsi',      short: 'Qudsi 40',  approxMB: 0.1, sunnah: 'qudsi40' },
     { id: 'dehlawi',  name: 'Forty Hadith of Shah Waliullah Dehlawi', short: 'Dehlawi 40', approxMB: 0.1, sunnah: 'shahwaliullah40' },
@@ -40,6 +57,13 @@
     nawawi: ['nawawi', 'nawawi40', 'an-nawawi', '40 nawawi', 'forty hadith', 'arbaeen', 'arbain'],
     qudsi: ['qudsi', 'qudsi40', 'hadith qudsi', '40 qudsi'],
     dehlawi: ['dehlawi', 'dehlvi', 'shah waliullah', 'shahwaliullah', 'shahwaliullah40', '40 dehlawi'],
+    ahmad: ['ahmad', 'ahmed', 'musnad ahmad', 'musnad ahmed', 'musnad'],
+    darimi: ['darimi', 'ad-darimi', 'al-darimi', 'sunan ad-darimi', 'sunan al-darimi'],
+    riyadussalihin: ['riyad', 'riyadh', 'riyad as-salihin', 'riyad us-salihin', 'riyadussalihin', 'riyadus salihin', 'riyad al-salihin', 'riyadh as-salihin'],
+    adab: ['adab', 'al-adab al-mufrad', 'adab al-mufrad', 'adab almufrad', 'al adab al mufrad'],
+    shamail: ['shamail', 'shamaail', 'ash-shamail', 'shamail muhammadiyah', 'shama il'],
+    bulugh: ['bulugh', 'bulugh al-maram', 'bulughul maram', 'bulugh maram'],
+    mishkat: ['mishkat', 'mishkat al-masabih', 'mishkath', 'mishkaat'],
   };
 
   const memory = new Map();      // "lang:bookId" -> edition object (parsed JSON)
@@ -49,8 +73,8 @@
     return BOOKS.find((b) => b.id === id) || null;
   }
 
-  async function cachedFetch(path) {
-    const urls = MIRRORS.map((m) => m + path);
+  async function cachedFetch(bases, path) {
+    const urls = bases.map((m) => m + path);
     let cache = null;
     try {
       cache = await caches.open(CACHE_NAME);
@@ -86,11 +110,13 @@
     lang = lang || 'eng';
     const key = lang + ':' + bookId;
     if (memory.has(key)) return Promise.resolve(memory.get(key));
+    const book = bookById(bookId);
+    if (book && book.src === 'hj') return loadHJ(book).then(() => memory.get(key));
     if (inflight.has(key)) return inflight.get(key);
     const path = lang === 'ara'
       ? '/editions/ara-' + bookId + '1.min.json'
       : '/editions/eng-' + bookId + '.min.json';
-    const p = cachedFetch(path)
+    const p = cachedFetch(MIRRORS, path)
       .then((ed) => {
         indexEdition(bookId, ed, lang);
         memory.set(key, ed);
@@ -100,6 +126,106 @@
       .catch((e) => { inflight.delete(key); throw e; });
     inflight.set(key, p);
     return p;
+  }
+
+  /* One hadith-json file carries both languages, so a single download
+   * (cached) yields the English and Arabic editions together. */
+  function loadHJ(book) {
+    const key = 'hj:' + book.id;
+    if (inflight.has(key)) return inflight.get(key);
+    const p = cachedFetch(HJ_MIRRORS, '/' + book.hjPath + '.json')
+      .then((raw) => {
+        for (const lang of ['eng', 'ara']) {
+          const memKey = lang + ':' + book.id;
+          if (!memory.has(memKey)) {
+            const ed = convertHJ(raw, lang);
+            indexEdition(book.id, ed, lang);
+            memory.set(memKey, ed);
+          }
+        }
+        inflight.delete(key);
+      })
+      .catch((e) => { inflight.delete(key); throw e; });
+    inflight.set(key, p);
+    return p;
+  }
+
+  /**
+   * Convert a hadith-json book to this app's edition shape, without touching
+   * the texts themselves. Numbering: most books' `idInBook` matches
+   * sunnah.com already; where the source misplaced the chapter with id 0 at
+   * the end of the file (Riyad, Mishkat, Darimi — sunnah.com puts that
+   * chapter FIRST), chapters are re-sorted by id and hadith renumbered
+   * sequentially, which reproduces sunnah.com's numbering (verified against
+   * known anchors, e.g. Riyad 1 / Mishkat 1 = the intentions hadith).
+   */
+  function convertHJ(raw, lang) {
+    const renumber = raw.chapters.length > 0 && raw.chapters[raw.chapters.length - 1].id === 0;
+    const chapterOrder = renumber
+      ? raw.chapters.slice().sort((a, b) => (a.id === null ? 1e9 : a.id) - (b.id === null ? 1e9 : b.id))
+      : raw.chapters;
+    const byChapter = new Map();
+    for (const h of raw.hadiths) {
+      const cid = h.chapterId;
+      if (!byChapter.has(cid)) byChapter.set(cid, []);
+      byChapter.get(cid).push(h);
+    }
+
+    const textOf = (h) => {
+      if (lang === 'ara') return h.arabic || '';
+      const narrator = (h.english && h.english.narrator || '').trim();
+      const body = (h.english && h.english.text || '').trim();
+      return narrator && body ? narrator + '\n' + body : (narrator || body);
+    };
+
+    const sections = {};
+    const details = {};
+    const hadiths = [];
+    // Assign numbers first (chapter traversal when renumbering, otherwise
+    // the file's own idInBook), then emit hadith in numeric order.
+    const numbered = new Map(); // source hadith -> number
+    if (renumber) {
+      let n = 0;
+      for (const c of chapterOrder) {
+        for (const h of byChapter.get(c.id) || []) numbered.set(h, ++n);
+      }
+    } else {
+      for (const h of raw.hadiths) numbered.set(h, h.idInBook);
+    }
+    chapterOrder.forEach((c, i) => {
+      const secNum = String(i + 1);
+      const hs = byChapter.get(c.id) || [];
+      if (!hs.length) return;
+      sections[secNum] = (lang === 'ara' ? c.arabic : c.english) || c.english || c.arabic || '';
+      const nums = hs.map((h) => numbered.get(h));
+      details[secNum] = {
+        hadithnumber_first: Math.min.apply(null, nums),
+        hadithnumber_last: Math.max.apply(null, nums),
+        arabicnumber_first: Math.min.apply(null, nums),
+        arabicnumber_last: Math.max.apply(null, nums),
+      };
+    });
+    for (const h of raw.hadiths) {
+      const num = numbered.get(h);
+      hadiths.push({
+        hadithnumber: num,
+        arabicnumber: num,
+        text: textOf(h),
+        grades: [], // this source records no gradings; none are shown
+        reference: { book: null, hadith: num },
+      });
+    }
+    hadiths.sort((a, b) => a.hadithnumber - b.hadithnumber);
+
+    const name = raw.metadata && raw.metadata[lang === 'ara' ? 'arabic' : 'english'];
+    return {
+      metadata: {
+        name: (name && name.title) || '',
+        sections,
+        section_details: details,
+      },
+      hadiths,
+    };
   }
 
   function isLoaded(bookId, lang) {
@@ -178,9 +304,17 @@
     return { hadith: ed.hadiths[idx], index: idx, edition: ed };
   }
 
-  /** Fetch the Arabic text of a single hadith (tiny request, also cached). */
+  /** Fetch the Arabic text of a single hadith (tiny request, also cached;
+   * for hadith-json books the Arabic is already in the downloaded file). */
   function loadArabic(bookId, number) {
-    return cachedFetch('/editions/ara-' + bookId + '/' + number + '.min.json')
+    const book = bookById(bookId);
+    if (book && book.src === 'hj') {
+      return loadEdition(bookId, 'ara').then(() => {
+        const got = getHadith(bookId, number, 'ara');
+        return got ? got.hadith.text : null;
+      });
+    }
+    return cachedFetch(MIRRORS, '/editions/ara-' + bookId + '/' + number + '.min.json')
       .then((d) => (d.hadiths && d.hadiths[0] ? d.hadiths[0].text : null));
   }
 
