@@ -25,6 +25,7 @@
     { id: 'malik',    name: 'Muwatta Malik',           short: 'Malik',     approxMB: 1,   sunnah: null },
     { id: 'nawawi',   name: 'Forty Hadith of an-Nawawi', short: 'Nawawi 40', approxMB: 0.1, sunnah: 'nawawi40' },
     { id: 'qudsi',    name: 'Forty Hadith Qudsi',      short: 'Qudsi 40',  approxMB: 0.1, sunnah: 'qudsi40' },
+    { id: 'dehlawi',  name: 'Forty Hadith of Shah Waliullah Dehlawi', short: 'Dehlawi 40', approxMB: 0.1, sunnah: 'shahwaliullah40' },
   ];
 
   // Accepted spellings when parsing reference queries like "bukhari 5062".
@@ -38,6 +39,7 @@
     malik: ['malik', 'muwatta', 'muwatta malik', 'muwatta imam malik'],
     nawawi: ['nawawi', 'nawawi40', 'an-nawawi', '40 nawawi', 'forty hadith', 'arbaeen', 'arbain'],
     qudsi: ['qudsi', 'qudsi40', 'hadith qudsi', '40 qudsi'],
+    dehlawi: ['dehlawi', 'dehlvi', 'shah waliullah', 'shahwaliullah', 'shahwaliullah40', '40 dehlawi'],
   };
 
   const memory = new Map();      // "lang:bookId" -> edition object (parsed JSON)

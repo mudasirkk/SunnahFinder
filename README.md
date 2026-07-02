@@ -30,10 +30,11 @@ the major collections right in your browser.
   and common transliterated terms also match the word the translations use
   (`wudu` finds "ablution", `sawm` finds "fasting"). These equivalences only
   widen the *search*; the displayed texts remain verbatim.
-- **Nine collections**: Sahih al-Bukhari, Sahih Muslim, Sunan an-Nasa'i,
+- **Ten collections**: Sahih al-Bukhari, Sahih Muslim, Sunan an-Nasa'i,
   Sunan Abi Dawud, Jami` at-Tirmidhi, Sunan Ibn Majah, Muwatta Malik, the
-  Forty Hadith of an-Nawawi, and the Forty Hadith Qudsi. Pick which ones to
-  search with one click.
+  Forty Hadith of an-Nawawi, the Forty Hadith Qudsi, and the Forty Hadith of
+  Shah Waliullah Dehlawi — everything the pinned dataset provides. Pick
+  collections with one tap, or use the Select all / Clear all toggle.
 - **Hadith pages** show the Arabic text alongside the English translation,
   the chapter it belongs to, scholars' authenticity gradings (Sahih / Hasan /
   Da'if, color-coded), previous/next navigation, copy-text and copy-link

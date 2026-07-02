@@ -15,10 +15,9 @@
   function getScope() {
     try {
       const raw = JSON.parse(localStorage.getItem('sf-scope') || 'null');
-      if (Array.isArray(raw)) {
-        const valid = raw.filter((id) => D.bookById(id));
-        if (valid.length) return valid;
-      }
+      // An explicitly-empty selection ("Clear all") is respected; only a
+      // missing/corrupt value falls back to the default.
+      if (Array.isArray(raw)) return raw.filter((id) => D.bookById(id));
     } catch (e) { /* fall through */ }
     return DEFAULT_SCOPE.slice();
   }
@@ -191,11 +190,12 @@
         '</button>'
       );
     }).join('');
+    const allOn = D.BOOKS.every((b) => scope.includes(b.id));
     return (
       '<div class="scope">' +
         '<span class="scope-label">Search in:</span>' +
         '<div class="scope-chips">' + chips + '</div>' +
-        '<button type="button" class="chip chip-ghost" id="scope-all">All</button>' +
+        '<button type="button" class="chip chip-ghost" id="scope-all">' + (allOn ? 'Clear all' : 'Select all') + '</button>' +
       '</div>'
     );
   }
@@ -214,27 +214,35 @@
         location.hash = href({ view: 'search', q, in: getScope() });
       }
     });
+    // Navigate to the updated search (keeping narrator/grade filters), or
+    // just re-render chips when there's no active query. Setting an
+    // identical hash fires no hashchange, so render directly in that case.
+    const refresh = () => {
+      if (currentQuery) {
+        const cur = parseRoute();
+        const target = href({ view: 'search', q: currentQuery, in: getScope(), n: cur.n || '', g: cur.g || [] });
+        if (location.hash === target) render();
+        else location.hash = target;
+      } else {
+        render();
+      }
+    };
     document.querySelectorAll('.chip[data-book]').forEach((chip) => {
       chip.addEventListener('click', () => {
         const id = chip.dataset.book;
         let next = getScope();
         if (next.includes(id)) next = next.filter((x) => x !== id);
         else next.push(id);
-        if (!next.length) next = [id]; // never allow an empty scope
         setScope(next);
-        if (currentQuery) {
-          location.hash = href({ view: 'search', q: currentQuery, in: next });
-        } else {
-          render(); // just refresh chip states
-        }
+        refresh();
       });
     });
     const all = document.getElementById('scope-all');
     if (all) {
       all.addEventListener('click', () => {
-        setScope(D.BOOKS.map((b) => b.id));
-        if (currentQuery) location.hash = href({ view: 'search', q: currentQuery, in: getScope() });
-        else render();
+        const allOn = D.BOOKS.every((b) => getScope().includes(b.id));
+        setScope(allOn ? [] : D.BOOKS.map((b) => b.id));
+        refresh();
       });
     }
     void scope;
@@ -514,6 +522,19 @@
     // Arabic-script queries search the Arabic editions; everything else
     // (English or transliteration) searches the translations.
     const lang = /[؀-ۿ]/.test(q) ? 'ara' : 'eng';
+    if (!scope.length) {
+      app.innerHTML =
+        '<section class="search-page">' +
+          searchBarHtml(q, false) +
+          scopeChipsHtml(scope) +
+          filtersHtml(route) +
+          '<div id="results"><p class="no-results">No collections selected. ' +
+          'Tap <b>Select all</b> or pick at least one collection above to search.</p></div>' +
+        '</section>';
+      bindSearchControls(scope, q);
+      bindFilterControls(route);
+      return;
+    }
     app.innerHTML =
       '<section class="search-page">' +
         searchBarHtml(q, false) +

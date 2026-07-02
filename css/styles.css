@@ -487,7 +487,7 @@ code, kbd {
   .search-form input { min-width: 0; font-size: 16px; } /* 16px stops iOS focus-zoom */
   .search-btn { padding: 0 0.9rem; }
   /* comfortable touch targets */
-  .chip { padding: 0.4rem 0.9rem; }
+  .chip { padding: 0.55rem 0.95rem; }
   .card-copy { padding: 0.3rem 0.7rem; }
   .icon-btn { padding: 0.4rem 0.7rem; }
   .pager a { padding: 0.55rem 1.1rem; }
