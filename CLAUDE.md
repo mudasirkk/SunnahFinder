@@ -12,10 +12,14 @@ static server (`http-server -p 8099 -s`) — there is nothing to compile.
    overlays/panels must fit the small screen. The mobile media query lives at
    the bottom of `css/styles.css` (`@media (max-width: 560px)`).
 2. **Nothing is generated.** Every displayed or copied text (Arabic,
-   translations, chapter names, grades) is verbatim from the
-   fawazahmed0/hadith-api dataset (pinned tag `@1`). Search expansions,
-   similarity matching and external links may guide *finding*; they must
-   never alter or fabricate *content*.
+   translations, chapter names, grades) is verbatim from one of the two
+   pinned datasets: fawazahmed0/hadith-api (tag `@1`) or
+   AhmedBaset/hadith-json (tag `v1.2.0`, a sunnah.com scrape; books with
+   `src: 'hj'` in `js/data.js`). Search expansions, similarity matching and
+   external links may guide *finding*; they must never alter or fabricate
+   *content*. hadith-json numbering: books whose chapter id 0 sits at the
+   end of the file get chapter-resorted + renumbered to match sunnah.com
+   (see `convertHJ`); validate against anchor hadith when touching this.
 
 ## Verification
 

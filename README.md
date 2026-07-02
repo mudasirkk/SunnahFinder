@@ -30,11 +30,14 @@ the major collections right in your browser.
   and common transliterated terms also match the word the translations use
   (`wudu` finds "ablution", `sawm` finds "fasting"). These equivalences only
   widen the *search*; the displayed texts remain verbatim.
-- **Ten collections**: Sahih al-Bukhari, Sahih Muslim, Sunan an-Nasa'i,
-  Sunan Abi Dawud, Jami` at-Tirmidhi, Sunan Ibn Majah, Muwatta Malik, the
-  Forty Hadith of an-Nawawi, the Forty Hadith Qudsi, and the Forty Hadith of
-  Shah Waliullah Dehlawi — everything the pinned dataset provides. Pick
-  collections with one tap, or use the Select all / Clear all toggle.
+- **Seventeen collections** — the same set sunnah.com offers (minus the
+  Hisn al-Muslim du'a book): Sahih al-Bukhari, Sahih Muslim, Sunan
+  an-Nasa'i, Sunan Abi Dawud, Jami` at-Tirmidhi, Sunan Ibn Majah, Muwatta
+  Malik, Musnad Ahmad, Sunan ad-Darimi (Arabic only, as on the source),
+  Riyad as-Salihin, Al-Adab Al-Mufrad, Shama'il Muhammadiyah, Bulugh
+  al-Maram, Mishkat al-Masabih, and the three forty-hadith compilations
+  (Nawawi, Qudsi, Shah Waliullah). Pick collections with one tap, or use
+  the Select all / Clear all toggle.
 - **Hadith pages** show the Arabic text alongside the English translation,
   the chapter it belongs to, scholars' authenticity gradings (Sahih / Hasan /
   Da'if, color-coded), previous/next navigation, copy-text and copy-link
@@ -79,11 +82,19 @@ sign up for. It also works on any static host (GitHub Pages, Netlify, etc.).
 
 ## How it works
 
-- Hadith texts come from the open
-  [fawazahmed0/hadith-api](https://github.com/fawazahmed0/hadith-api) dataset,
-  fetched from jsDelivr with an automatic fallback mirror
-  (raw.githubusercontent.com). The data is pinned to an immutable release tag
-  and cached with the browser Cache Storage API.
+- Hadith texts come from two open datasets, each pinned to an immutable
+  release and fetched from jsDelivr with an automatic fallback mirror
+  (raw.githubusercontent.com), cached with the browser Cache Storage API:
+  [fawazahmed0/hadith-api](https://github.com/fawazahmed0/hadith-api) (`@1`)
+  for the classic nine-plus-forties with scholars' grades, and
+  [AhmedBaset/hadith-json](https://github.com/AhmedBaset/hadith-json)
+  (`v1.2.0`, a sunnah.com scrape) for Musnad Ahmad, Sunan ad-Darimi, Riyad
+  as-Salihin, Al-Adab Al-Mufrad, Shama'il Muhammadiyah, Bulugh al-Maram and
+  Mishkat al-Masabih. Where the second dataset stores sunnah.com's leading
+  chapter at the end of the file (Riyad, Mishkat, Darimi), chapters are
+  re-sorted and hadith renumbered to match sunnah.com's numbering — verified
+  against known anchor hadith. The second source records no gradings, so
+  those books show none.
 - Search runs entirely client-side (`js/search.js`): text is normalized
   (case, accents, apostrophes, Arabic diacritics), queries support quoted
   phrases, and results are ranked by whole-word/phrase/position scoring.
