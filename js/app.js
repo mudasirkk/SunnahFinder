@@ -43,6 +43,18 @@
     kufi: { label: 'Noto Kufi Arabic', css: "'Noto Kufi Arabic', sans-serif", gf: 'Noto+Kufi+Arabic:wght@400;700' },
   };
 
+  // Reading-text size scale, applied to Arabic + English hadith text via the
+  // --reading-scale CSS variable.
+  const SIZES = {
+    s:  { label: 'Small', scale: 0.9 },
+    m:  { label: 'Default', scale: 1 },
+    l:  { label: 'Large', scale: 1.15 },
+    xl: { label: 'Extra large', scale: 1.3 },
+  };
+
+  // Basmala shown in the header and used as the Arabic font/size specimen.
+  const BISMILLAH = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
+
   function getSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem('sf-settings') || '{}'); } catch (e) { /* defaults */ }
@@ -50,6 +62,7 @@
       theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',
       engFont: ENG_FONTS[s.engFont] ? s.engFont : 'system',
       araFont: ARA_FONTS[s.araFont] ? s.araFont : 'naskh',
+      size: SIZES[s.size] ? s.size : 'm',
     };
   }
 
@@ -77,55 +90,126 @@
     ensureGoogleFont(ARA_FONTS[s.araFont].gf);
     document.documentElement.style.setProperty('--english-font', ENG_FONTS[s.engFont].css);
     document.documentElement.style.setProperty('--arabic-font', ARA_FONTS[s.araFont].css);
+    document.documentElement.style.setProperty('--reading-scale', String(SIZES[s.size].scale));
+  }
+
+  /* Shared settings UI — one markup builder used by both the desktop drawer
+   * and the mobile settings page, so the two never drift apart. */
+
+  function optionsHtml(entries, cur) {
+    return entries.map(([val, label]) =>
+      '<option value="' + esc(val) + '"' + (val === cur ? ' selected' : '') + '>' + esc(label) + '</option>'
+    ).join('');
+  }
+
+  function settingsFormHtml() {
+    const s = getSettings();
+    const scope = getScope();
+    const allOn = D.BOOKS.every((b) => scope.includes(b.id));
+    const fontEntries = (fonts) => Object.keys(fonts).map((k) => [k, fonts[k].label]);
+    const books = D.BOOKS.map((b) =>
+      '<label class="set-book"><input type="checkbox" data-book="' + b.id + '"' +
+        (scope.includes(b.id) ? ' checked' : '') + '>' +
+        '<span>' + esc(b.short) + (b.araOnly ? ' <span class="muted">· Arabic</span>' : '') + '</span></label>'
+    ).join('');
+    return (
+      '<div class="settings-form">' +
+        '<label class="set-group"><span class="set-legend">Theme</span>' +
+          '<select id="set-theme">' + optionsHtml([['auto', 'Auto (follow system)'], ['light', 'Light'], ['dark', 'Dark']], s.theme) + '</select></label>' +
+        '<label class="set-group"><span class="set-legend">English font</span>' +
+          '<select id="set-eng-font">' + optionsHtml(fontEntries(ENG_FONTS), s.engFont) + '</select></label>' +
+        '<label class="set-group"><span class="set-legend">Arabic font</span>' +
+          '<select id="set-ara-font">' + optionsHtml(fontEntries(ARA_FONTS), s.araFont) + '</select></label>' +
+        '<label class="set-group"><span class="set-legend">Text size</span>' +
+          '<select id="set-size">' + optionsHtml(Object.keys(SIZES).map((k) => [k, SIZES[k].label]), s.size) + '</select></label>' +
+        '<div class="set-group"><span class="set-legend">Preview</span>' +
+          '<div class="settings-preview" aria-hidden="true">' +
+            '<p class="preview-ara" dir="rtl" lang="ar">' + esc(BISMILLAH) + '</p>' +
+            '<p class="preview-eng">This is how translations appear at your chosen font and size.</p>' +
+          '</div></div>' +
+        '<div class="set-group set-books"><span class="set-legend">Collections to search</span>' +
+          '<p class="settings-note">New searches start with these. You can still change them for any single search.</p>' +
+          '<div class="set-book-list">' + books + '</div>' +
+          '<button type="button" class="linklike" id="set-books-all">' + (allOn ? 'Clear all' : 'Select all') + '</button>' +
+        '</div>' +
+        '<p class="settings-note">“Copy for Docs” embeds your chosen fonts in the pasted text.</p>' +
+      '</div>'
+    );
+  }
+
+  /* Wire a rendered settings form. All lookups are scoped to `root` so the
+   * drawer and the page instances stay independent even if both exist. */
+  function bindSettings(root) {
+    const themeSel = root.querySelector('#set-theme');
+    const engSel = root.querySelector('#set-eng-font');
+    const araSel = root.querySelector('#set-ara-font');
+    const sizeSel = root.querySelector('#set-size');
+    const onChange = () => {
+      saveSettings({ theme: themeSel.value, engFont: engSel.value, araFont: araSel.value, size: sizeSel.value });
+      applySettings();
+    };
+    [themeSel, engSel, araSel, sizeSel].forEach((el) => { if (el) el.addEventListener('change', onChange); });
+
+    const allBtn = root.querySelector('#set-books-all');
+    const syncAllBtn = () => {
+      if (allBtn) allBtn.textContent = D.BOOKS.every((b) => getScope().includes(b.id)) ? 'Clear all' : 'Select all';
+    };
+    root.querySelectorAll('.set-book input[data-book]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const id = cb.dataset.book;
+        let next = getScope();
+        next = cb.checked ? (next.includes(id) ? next : next.concat(id)) : next.filter((x) => x !== id);
+        setScope(next);
+        syncAllBtn();
+      });
+    });
+    if (allBtn) {
+      allBtn.addEventListener('click', () => {
+        const allOn = D.BOOKS.every((b) => getScope().includes(b.id));
+        setScope(allOn ? [] : D.BOOKS.map((b) => b.id));
+        root.querySelectorAll('.set-book input[data-book]').forEach((cb) => { cb.checked = !allOn; });
+        syncAllBtn();
+      });
+    }
   }
 
   function initSettings() {
+    applySettings();
     const btn = document.getElementById('settings-toggle');
     const panel = document.getElementById('settings-panel');
-    const themeSel = document.getElementById('set-theme');
-    const engSel = document.getElementById('set-eng-font');
-    const araSel = document.getElementById('set-ara-font');
-    const fill = (sel, fonts) => {
-      sel.innerHTML = Object.keys(fonts).map((k) =>
-        '<option value="' + k + '">' + esc(fonts[k].label) + '</option>').join('');
-    };
-    fill(engSel, ENG_FONTS);
-    fill(araSel, ARA_FONTS);
-    const s = getSettings();
-    themeSel.value = s.theme;
-    engSel.value = s.engFont;
-    araSel.value = s.araFont;
+    const backdrop = document.getElementById('settings-backdrop');
+    if (!btn || !panel || !backdrop) return;
 
-    const onChange = () => {
-      saveSettings({ theme: themeSel.value, engFont: engSel.value, araFont: araSel.value });
-      applySettings();
-    };
-    themeSel.addEventListener('change', onChange);
-    engSel.addEventListener('change', onChange);
-    araSel.addEventListener('change', onChange);
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      panel.hidden = !panel.hidden;
-      btn.setAttribute('aria-expanded', String(!panel.hidden));
-    });
-    const tabSettings = document.getElementById('tab-settings');
-    if (tabSettings) {
-      tabSettings.addEventListener('click', (e) => {
-        e.stopPropagation();
-        panel.hidden = false;
-        btn.setAttribute('aria-expanded', 'true');
-      });
+    const isOpen = () => panel.classList.contains('open');
+    function openDrawer() {
+      panel.innerHTML =
+        '<div class="settings-panel-inner">' +
+          '<header class="settings-head"><h2>Settings</h2>' +
+            '<button type="button" class="modal-x" id="settings-close" aria-label="Close settings">✕</button></header>' +
+          settingsFormHtml() +
+        '</div>';
+      bindSettings(panel);
+      panel.querySelector('#settings-close').addEventListener('click', closeDrawer);
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+      backdrop.classList.add('show');
+      btn.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
     }
-    panel.addEventListener('click', (e) => e.stopPropagation());
-    document.addEventListener('click', () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !panel.hidden) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
-    });
+    function closeDrawer() {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+      backdrop.classList.remove('show');
+      btn.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      setTimeout(() => { if (!isOpen()) panel.innerHTML = ''; }, 300);
+    }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); isOpen() ? closeDrawer() : openDrawer(); });
+    backdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isOpen()) closeDrawer(); });
     if (window.matchMedia) {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySettings);
     }
-    applySettings();
   }
 
   /* ---------- routing ---------- */
@@ -137,6 +221,7 @@
     const segs = pathPart.split('/').filter(Boolean).map(decodeURIComponent);
     if (segs.length === 0) return { view: 'home' };
     if (segs[0] === 'browse') return { view: 'browse' };
+    if (segs[0] === 'settings') return { view: 'settings' };
     if (segs[0] === 'search') {
       return {
         view: 'search',
@@ -285,11 +370,23 @@
   }
 
   function updateTabbar(view) {
-    const map = { home: 'search', search: 'search', browse: 'browse', book: 'browse', section: 'browse', hadith: 'browse' };
+    const map = { home: 'search', search: 'search', browse: 'browse', book: 'browse', section: 'browse', hadith: 'browse', settings: 'settings' };
     const active = map[view] || 'search';
     document.querySelectorAll('#tabbar .tab').forEach((t) => {
       t.classList.toggle('tab-on', t.dataset.tab === active);
     });
+  }
+
+  /* Settings as a full page — the mobile path (bottom-tab › Settings). Reuses
+   * the same form/bindings as the desktop drawer. */
+  function renderSettings() {
+    app.innerHTML =
+      '<section class="settings-page">' +
+        '<nav class="crumbs"><a href="#/">Home</a> › Settings</nav>' +
+        '<h1 class="settings-title">Settings</h1>' +
+        settingsFormHtml() +
+      '</section>';
+    bindSettings(app);
   }
 
   function renderBrowse() {
@@ -951,6 +1048,7 @@
     switch (route.view) {
       case 'search': renderSearch(route); break;
       case 'browse': renderBrowse(); break;
+      case 'settings': renderSettings(); break;
       case 'book': renderBook(route); break;
       case 'section': renderSection(route); break;
       case 'hadith': renderHadith(route); break;

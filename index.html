@@ -14,28 +14,11 @@
 <body>
   <header class="site-header">
     <a class="brand" href="#/" aria-label="SunnahFinder home">
-      <span class="brand-mark">☪</span>
       <span class="brand-name">Sunnah<b>Finder</b></span>
     </a>
+    <div class="bismillah" dir="rtl" lang="ar" aria-hidden="true">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
     <div class="header-actions">
-      <button id="settings-toggle" class="icon-btn" title="Settings" aria-label="Settings" aria-expanded="false">⚙</button>
-      <div id="settings-panel" class="settings-panel" hidden>
-        <h2>Settings</h2>
-        <label>Theme
-          <select id="set-theme">
-            <option value="auto">Auto (follow system)</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label>English font
-          <select id="set-eng-font"></select>
-        </label>
-        <label>Arabic font
-          <select id="set-ara-font"></select>
-        </label>
-        <p class="settings-note">“Copy for Docs” embeds your chosen fonts in the pasted text.</p>
-      </div>
+      <button id="settings-toggle" class="icon-btn" title="Settings" aria-label="Settings" aria-expanded="false" aria-controls="settings-panel">⚙</button>
     </div>
   </header>
 
@@ -68,11 +51,14 @@
       <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"></rect><rect x="11" y="3" width="6" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"></rect></svg>
       <span>Browse</span>
     </a>
-    <button class="tab" data-tab="settings" id="tab-settings" type="button">
+    <a class="tab" data-tab="settings" href="#/settings">
       <svg viewBox="0 0 20 20" aria-hidden="true"><line x1="3" y1="5.5" x2="17" y2="5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line><circle cx="12.5" cy="5.5" r="2.4" fill="var(--bg-card)" stroke="currentColor" stroke-width="1.7"></circle><line x1="3" y1="12.5" x2="17" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line><circle cx="7" cy="12.5" r="2.4" fill="var(--bg-card)" stroke="currentColor" stroke-width="1.7"></circle></svg>
       <span>Settings</span>
-    </button>
+    </a>
   </nav>
+
+  <div id="settings-backdrop" class="settings-backdrop"></div>
+  <aside id="settings-panel" class="settings-panel" aria-label="Settings" aria-hidden="true"></aside>
 
   <div id="scope-modal" class="modal" hidden></div>
 
