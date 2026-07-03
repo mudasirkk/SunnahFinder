@@ -43,14 +43,15 @@
     kufi: { label: 'Noto Kufi Arabic', css: "'Noto Kufi Arabic', sans-serif", gf: 'Noto+Kufi+Arabic:wght@400;700' },
   };
 
-  // Reading-text size scale, applied to Arabic + English hadith text via the
-  // --reading-scale CSS variable.
-  const SIZES = {
-    s:  { label: 'Small', scale: 0.9 },
-    m:  { label: 'Default', scale: 1 },
-    l:  { label: 'Large', scale: 1.15 },
-    xl: { label: 'Extra large', scale: 1.3 },
-  };
+  // Independent reading-text scales for English and Arabic, driven by sliders
+  // and applied via the --eng-reading-scale / --ara-reading-scale variables.
+  const SCALE = { min: 0.85, max: 1.4, step: 0.05, def: 1 };
+  function clampScale(v) {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    if (!isFinite(n)) return SCALE.def;
+    const snapped = Math.round(n / SCALE.step) * SCALE.step;
+    return Math.min(SCALE.max, Math.max(SCALE.min, snapped));
+  }
 
   // Basmala shown in the header and used as the Arabic font/size specimen.
   const BISMILLAH = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
@@ -62,7 +63,8 @@
       theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',
       engFont: ENG_FONTS[s.engFont] ? s.engFont : 'system',
       araFont: ARA_FONTS[s.araFont] ? s.araFont : 'naskh',
-      size: SIZES[s.size] ? s.size : 'm',
+      engScale: clampScale(s.engScale),
+      araScale: clampScale(s.araScale),
     };
   }
 
@@ -90,7 +92,8 @@
     ensureGoogleFont(ARA_FONTS[s.araFont].gf);
     document.documentElement.style.setProperty('--english-font', ENG_FONTS[s.engFont].css);
     document.documentElement.style.setProperty('--arabic-font', ARA_FONTS[s.araFont].css);
-    document.documentElement.style.setProperty('--reading-scale', String(SIZES[s.size].scale));
+    document.documentElement.style.setProperty('--eng-reading-scale', String(s.engScale));
+    document.documentElement.style.setProperty('--ara-reading-scale', String(s.araScale));
   }
 
   /* Shared settings UI — one markup builder used by both the desktop drawer
@@ -107,6 +110,20 @@
     const scope = getScope();
     const allOn = D.BOOKS.every((b) => scope.includes(b.id));
     const fontEntries = (fonts) => Object.keys(fonts).map((k) => [k, fonts[k].label]);
+    const themeToggle = '<div class="seg" role="group" aria-label="Theme">' +
+      [['light', 'Light'], ['auto', 'Auto'], ['dark', 'Dark']].map(([v, l]) =>
+        '<button type="button" class="seg-btn' + (v === s.theme ? ' on' : '') + '" data-theme-opt="' + v + '"' +
+          ' aria-pressed="' + (v === s.theme) + '">' + l + '</button>').join('') +
+      '</div>';
+    const sizeSlider = (label, id, val) =>
+      '<div class="set-group"><span class="set-legend">' + esc(label) + '</span>' +
+        '<div class="size-row">' +
+          '<span class="size-a size-a-min" aria-hidden="true">A</span>' +
+          '<input type="range" class="size-slider" id="' + id + '" ' +
+            'min="' + SCALE.min + '" max="' + SCALE.max + '" step="' + SCALE.step + '" value="' + val + '" ' +
+            'aria-label="' + esc(label) + '">' +
+          '<span class="size-a size-a-max" aria-hidden="true">A</span>' +
+        '</div></div>';
     const books = D.BOOKS.map((b) =>
       '<label class="set-book"><input type="checkbox" data-book="' + b.id + '"' +
         (scope.includes(b.id) ? ' checked' : '') + '>' +
@@ -114,14 +131,13 @@
     ).join('');
     return (
       '<div class="settings-form">' +
-        '<label class="set-group"><span class="set-legend">Theme</span>' +
-          '<select id="set-theme">' + optionsHtml([['auto', 'Auto (follow system)'], ['light', 'Light'], ['dark', 'Dark']], s.theme) + '</select></label>' +
+        '<div class="set-group"><span class="set-legend">Theme</span>' + themeToggle + '</div>' +
         '<label class="set-group"><span class="set-legend">English font</span>' +
           '<select id="set-eng-font">' + optionsHtml(fontEntries(ENG_FONTS), s.engFont) + '</select></label>' +
         '<label class="set-group"><span class="set-legend">Arabic font</span>' +
           '<select id="set-ara-font">' + optionsHtml(fontEntries(ARA_FONTS), s.araFont) + '</select></label>' +
-        '<label class="set-group"><span class="set-legend">Text size</span>' +
-          '<select id="set-size">' + optionsHtml(Object.keys(SIZES).map((k) => [k, SIZES[k].label]), s.size) + '</select></label>' +
+        sizeSlider('English text size', 'set-eng-size', s.engScale) +
+        sizeSlider('Arabic text size', 'set-ara-size', s.araScale) +
         '<div class="set-group"><span class="set-legend">Preview</span>' +
           '<div class="settings-preview" aria-hidden="true">' +
             '<p class="preview-ara" dir="rtl" lang="ar">' + esc(BISMILLAH) + '</p>' +
@@ -140,15 +156,38 @@
   /* Wire a rendered settings form. All lookups are scoped to `root` so the
    * drawer and the page instances stay independent even if both exist. */
   function bindSettings(root) {
-    const themeSel = root.querySelector('#set-theme');
     const engSel = root.querySelector('#set-eng-font');
     const araSel = root.querySelector('#set-ara-font');
-    const sizeSel = root.querySelector('#set-size');
-    const onChange = () => {
-      saveSettings({ theme: themeSel.value, engFont: engSel.value, araFont: araSel.value, size: sizeSel.value });
+    const engSize = root.querySelector('#set-eng-size');
+    const araSize = root.querySelector('#set-ara-size');
+    const segBtns = Array.prototype.slice.call(root.querySelectorAll('.seg-btn[data-theme-opt]'));
+    const currentTheme = () => {
+      const on = segBtns.filter((b) => b.classList.contains('on'))[0];
+      return on ? on.dataset.themeOpt : 'auto';
+    };
+    const save = () => {
+      saveSettings({
+        theme: currentTheme(),
+        engFont: engSel.value,
+        araFont: araSel.value,
+        engScale: parseFloat(engSize.value),
+        araScale: parseFloat(araSize.value),
+      });
       applySettings();
     };
-    [themeSel, engSel, araSel, sizeSel].forEach((el) => { if (el) el.addEventListener('change', onChange); });
+    [engSel, araSel].forEach((el) => { if (el) el.addEventListener('change', save); });
+    // `input` (not `change`) so the preview scales live while dragging.
+    [engSize, araSize].forEach((el) => { if (el) el.addEventListener('input', save); });
+    segBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        segBtns.forEach((b) => {
+          const on = b === btn;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        save();
+      });
+    });
 
     const allBtn = root.querySelector('#set-books-all');
     const syncAllBtn = () => {
