@@ -845,7 +845,11 @@ code, kbd {
 
 @media (max-width: 560px) {
   .app { padding-bottom: 4.8rem; }
-  .detail-grid { grid-template-columns: 1fr; gap: 1.3rem; }
+  /* minmax(0,…) — a bare 1fr keeps an auto (min-content) minimum, so the
+     nowrap .similar-text rows would force the track (and the page) wide
+     instead of ellipsizing, zooming the whole view out. */
+  .detail-grid { grid-template-columns: minmax(0, 1fr); gap: 1.3rem; }
+  .detail-main { min-width: 0; }
   .detail-rail { position: static; border-top: 1px solid var(--hairline); padding-top: 1rem; }
   .modal { align-items: flex-end; padding: 0; }
   .modal-panel { width: 100%; max-width: 100%; border-radius: 18px 18px 0 0; max-height: 84vh; }
