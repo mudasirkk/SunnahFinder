@@ -109,6 +109,14 @@
       panel.hidden = !panel.hidden;
       btn.setAttribute('aria-expanded', String(!panel.hidden));
     });
+    const tabSettings = document.getElementById('tab-settings');
+    if (tabSettings) {
+      tabSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        panel.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+      });
+    }
     panel.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); });
     document.addEventListener('keydown', (e) => {
@@ -128,6 +136,7 @@
     const params = new URLSearchParams(queryPart || '');
     const segs = pathPart.split('/').filter(Boolean).map(decodeURIComponent);
     if (segs.length === 0) return { view: 'home' };
+    if (segs[0] === 'browse') return { view: 'browse' };
     if (segs[0] === 'search') {
       return {
         view: 'search',
@@ -179,26 +188,123 @@
     );
   }
 
-  function scopeChipsHtml(scope) {
-    const chips = D.BOOKS.map((b) => {
+  /* ---------- collection scope: compact summary + picker modal ---------- */
+
+  function scopeLabel(scope) {
+    const all = D.BOOKS.length;
+    if (scope.length >= all) return 'all ' + all + ' collections';
+    if (scope.length === 0) return 'no collections';
+    if (scope.length <= 2) return scope.map((id) => D.bookById(id).short).join(' & ');
+    return scope.length + ' collections';
+  }
+
+  function scopeSummaryHtml(scope) {
+    return (
+      '<div class="scope-summary">' +
+        '<span class="scope-label">Searching in</span> ' +
+        '<button type="button" class="scope-pick" id="scope-pick">' +
+          esc(scopeLabel(scope)) + ' <span class="scope-caret">▾</span></button>' +
+      '</div>'
+    );
+  }
+
+  function buildScopeModal() {
+    const scope = getScope();
+    const rows = D.BOOKS.map((b) => {
       const on = scope.includes(b.id);
       const loaded = D.isLoaded(b.id);
       return (
-        '<button type="button" class="chip' + (on ? ' chip-on' : '') + '" data-book="' + b.id + '" ' +
-          'title="' + esc(b.name) + (b.araOnly ? ' — Arabic text only' : '') +
-          (loaded ? ' (downloaded)' : ' (~' + b.approxMB + ' MB one-time download)') + '">' +
-          esc(b.short) + (loaded ? ' <span class="chip-check">✓</span>' : '') +
+        '<button type="button" class="scope-row' + (on ? ' on' : '') + '" data-book="' + b.id + '">' +
+          '<span class="scope-box">' + (on ? '✓' : '') + '</span>' +
+          '<span class="scope-row-name">' + esc(b.name) + (b.araOnly ? ' <span class="muted">· Arabic only</span>' : '') + '</span>' +
+          '<span class="scope-row-sub">' + (loaded ? 'downloaded' : '~' + b.approxMB + ' MB') + '</span>' +
         '</button>'
       );
     }).join('');
     const allOn = D.BOOKS.every((b) => scope.includes(b.id));
     return (
-      '<div class="scope">' +
-        '<span class="scope-label">Search in:</span>' +
-        '<div class="scope-chips">' + chips + '</div>' +
-        '<button type="button" class="chip chip-ghost" id="scope-all">' + (allOn ? 'Clear all' : 'Select all') + '</button>' +
+      '<div class="modal-panel" role="dialog" aria-modal="true" aria-label="Choose collections">' +
+        '<header class="modal-head">' +
+          '<div><div class="modal-title">Search in</div>' +
+          '<div class="modal-sub">' + scope.length + ' of ' + D.BOOKS.length + ' selected</div></div>' +
+          '<button type="button" class="modal-x" id="scope-close" aria-label="Close">✕</button>' +
+        '</header>' +
+        '<div class="modal-body">' + rows + '</div>' +
+        '<footer class="modal-foot">' +
+          '<button type="button" class="linklike" id="scope-all">' + (allOn ? 'Clear all' : 'Select all') + '</button>' +
+          '<button type="button" class="search-btn" id="scope-done">Done</button>' +
+        '</footer>' +
       '</div>'
     );
+  }
+
+  function renderScopeModalInto(m) {
+    m.innerHTML = buildScopeModal();
+    const close = () => { m.hidden = true; document.body.style.overflow = ''; };
+    m.querySelector('#scope-close').onclick = close;
+    m.querySelector('#scope-done').onclick = close;
+    m.querySelectorAll('.scope-row[data-book]').forEach((row) => {
+      row.onclick = () => {
+        const id = row.dataset.book;
+        let next = getScope();
+        next = next.includes(id) ? next.filter((x) => x !== id) : next.concat(id);
+        setScope(next);
+        renderScopeModalInto(m);
+        refreshForScope();
+      };
+    });
+    m.querySelector('#scope-all').onclick = () => {
+      const allOn = D.BOOKS.every((b) => getScope().includes(b.id));
+      setScope(allOn ? [] : D.BOOKS.map((b) => b.id));
+      renderScopeModalInto(m);
+      refreshForScope();
+    };
+  }
+
+  function openScopeModal() {
+    const m = document.getElementById('scope-modal');
+    if (!m) return;
+    renderScopeModalInto(m);
+    m.hidden = false;
+    document.body.style.overflow = 'hidden';
+    m.onclick = (e) => { if (e.target === m) { m.hidden = true; document.body.style.overflow = ''; } };
+  }
+
+  /* Re-render / re-navigate after the scope changes, keeping any active query
+   * and filters. Setting an identical hash fires no hashchange, so in that
+   * case we render directly. */
+  function refreshForScope() {
+    const cur = parseRoute();
+    if (cur.view === 'search' && cur.q) {
+      const target = href({ view: 'search', q: cur.q, in: getScope(), n: cur.n || '', g: cur.g || [] });
+      if (location.hash === target) render();
+      else location.hash = target;
+    } else {
+      render();
+    }
+  }
+
+  function updateTabbar(view) {
+    const map = { home: 'search', search: 'search', browse: 'browse', book: 'browse', section: 'browse', hadith: 'browse' };
+    const active = map[view] || 'search';
+    document.querySelectorAll('#tabbar .tab').forEach((t) => {
+      t.classList.toggle('tab-on', t.dataset.tab === active);
+    });
+  }
+
+  function renderBrowse() {
+    const books = D.BOOKS.map((b) =>
+      '<a class="book-card" href="#/b/' + b.id + '">' +
+        '<span class="book-card-name">' + esc(b.name) + '</span>' +
+        '<span class="book-card-sub">Browse chapters →</span>' +
+      '</a>'
+    ).join('');
+    app.innerHTML =
+      '<section class="books browse-page">' +
+        '<nav class="crumbs"><a href="#/">Home</a> › Browse</nav>' +
+        '<h1 class="section-title">Browse collections</h1>' +
+        '<div class="book-grid">' + books + '</div>' +
+      '</section>';
   }
 
   function bindSearchControls(scope, currentQuery) {
@@ -215,38 +321,9 @@
         location.hash = href({ view: 'search', q, in: getScope() });
       }
     });
-    // Navigate to the updated search (keeping narrator/grade filters), or
-    // just re-render chips when there's no active query. Setting an
-    // identical hash fires no hashchange, so render directly in that case.
-    const refresh = () => {
-      if (currentQuery) {
-        const cur = parseRoute();
-        const target = href({ view: 'search', q: currentQuery, in: getScope(), n: cur.n || '', g: cur.g || [] });
-        if (location.hash === target) render();
-        else location.hash = target;
-      } else {
-        render();
-      }
-    };
-    document.querySelectorAll('.chip[data-book]').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const id = chip.dataset.book;
-        let next = getScope();
-        if (next.includes(id)) next = next.filter((x) => x !== id);
-        else next.push(id);
-        setScope(next);
-        refresh();
-      });
-    });
-    const all = document.getElementById('scope-all');
-    if (all) {
-      all.addEventListener('click', () => {
-        const allOn = D.BOOKS.every((b) => getScope().includes(b.id));
-        setScope(allOn ? [] : D.BOOKS.map((b) => b.id));
-        refresh();
-      });
-    }
-    void scope;
+    const pick = document.getElementById('scope-pick');
+    if (pick) pick.addEventListener('click', openScopeModal);
+    void scope; void currentQuery;
   }
 
   /* ---------- result filters (narrator, grade classification) ---------- */
@@ -515,7 +592,7 @@
           '<a href="#/search?q=%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84%20%D8%A8%D8%A7%D9%84%D9%86%D9%8A%D8%A7%D8%AA" dir="rtl" lang="ar">الأعمال بالنيات</a>' +
           '<a href="#/b/bukhari/5062">bukhari 5062</a>' +
         '</div>' +
-        scopeChipsHtml(scope) +
+        scopeSummaryHtml(scope) +
       '</section>' +
       '<section class="books"><h2>Browse collections</h2><div class="book-grid">' + books + '</div></section>';
     bindSearchControls(scope, '');
@@ -533,10 +610,10 @@
       app.innerHTML =
         '<section class="search-page">' +
           searchBarHtml(q, false) +
-          scopeChipsHtml(scope) +
+          scopeSummaryHtml(scope) +
           filtersHtml(route) +
           '<div id="results"><p class="no-results">No collections selected. ' +
-          'Tap <b>Select all</b> or pick at least one collection above to search.</p></div>' +
+          'Open the <b>Searching in</b> picker above and choose at least one collection.</p></div>' +
         '</section>';
       bindSearchControls(scope, q);
       bindFilterControls(route);
@@ -545,7 +622,7 @@
     app.innerHTML =
       '<section class="search-page">' +
         searchBarHtml(q, false) +
-        scopeChipsHtml(scope) +
+        scopeSummaryHtml(scope) +
         filtersHtml(route) +
         '<div id="results">' + loadingHtml(scope.filter((id) => !D.isLoaded(id, lang)), lang) + '</div>' +
       '</section>';
@@ -693,6 +770,8 @@
       let arabicText = null; // set once the Arabic loads; copy buttons include it
 
       el.innerHTML =
+        '<div class="detail-grid">' +
+        '<div class="detail-main">' +
         '<article class="hadith-card">' +
           '<header>' +
             '<h1>' + refLabel(b.id, hadith) + '</h1>' +
@@ -714,19 +793,27 @@
             (next ? '<a href="' + href({ view: 'hadith', bookId: b.id, number: String(next.hadithnumber) }) + '">' + esc(String(next.hadithnumber)) + ' →</a>' : '<span></span>') +
           '</nav>' +
         '</article>' +
-
         '<section class="related">' +
-          '<h2>Similar narrations <span class="how muted">— matched automatically by shared wording; texts shown are verbatim</span></h2>' +
+          '<h2>Also narrated in <span class="how muted">— matched automatically by shared wording; texts are verbatim</span></h2>' +
           '<div id="related-list"></div>' +
           '<p class="related-note muted" id="related-note"></p>' +
         '</section>' +
-
-        '<section class="explanations">' +
-          '<h2>Explanations &amp; commentary</h2>' +
-          '<ul class="explain-links" id="explain-links"></ul>' +
-          '<p class="muted how">These links open this hadith (or a search for it) on established external sites. ' +
-          'SunnahFinder never writes its own commentary — everything shown above is verbatim from the source dataset.</p>' +
-        '</section>';
+        '</div>' +
+        '<aside class="detail-rail">' +
+          '<div class="rail-block"><h3 class="rail-label">About</h3>' +
+            '<dl class="rail-facts">' +
+              '<div><dt>Collection</dt><dd>' + esc(b.name) + '</dd></div>' +
+              (sec ? '<div><dt>Chapter</dt><dd><a href="' + href({ view: 'section', bookId: b.id, section: sec.number }) + '">' + esc(sec.number) + '. ' + esc(sec.name) + '</a></dd></div>' : '') +
+              '<div><dt>Number</dt><dd>' + esc(String(hadith.hadithnumber)) + '</dd></div>' +
+              '<div><dt>Grade</dt><dd>' + (gradesHtml(b.id, hadith) || '<span class="muted">Not recorded</span>') + '</dd></div>' +
+            '</dl>' +
+          '</div>' +
+          '<div class="rail-block"><h3 class="rail-label">Read more</h3>' +
+            '<ul class="explain-links" id="explain-links"></ul>' +
+            '<p class="muted how">External links — nothing here is generated by SunnahFinder.</p>' +
+          '</div>' +
+        '</aside>' +
+        '</div>';
 
       document.getElementById('copy-text').addEventListener('click', function () {
         copy(plainCopy(b.id, hadith, arabicText), this);
@@ -767,12 +854,16 @@
     const matches = D.similarHadith(bookId, hadith.hadithnumber, 6);
     list.innerHTML = matches.length
       ? matches.map((m) => {
-          const text = m.hadith.text.length > 280 ? m.hadith.text.slice(0, 280) + '…' : m.hadith.text;
-          const badge = '<span class="match-badge" title="Share of distinctive words in common">' + Math.round(m.score * 100) + '% wording overlap</span>';
-          return cardHtml(m.bookId, m.hadith, esc(text), badge);
+          const full = m.hadith.text || '';
+          const text = full.length > 120 ? full.slice(0, 120) + '…' : full;
+          const link = href({ view: 'hadith', bookId: m.bookId, number: String(m.hadith.hadithnumber) });
+          return '<a class="similar-row" href="' + link + '">' +
+            '<span class="similar-ref">' + esc(D.bookById(m.bookId).short) + ' ' + esc(String(m.hadith.hadithnumber)) + '</span>' +
+            '<span class="similar-text">' + esc(text) + '</span>' +
+            '<span class="similar-pct" title="Share of distinctive words in common">' + Math.round(m.score * 100) + '%</span>' +
+          '</a>';
         }).join('')
       : '<p class="muted">No close parallels found in the downloaded collections.</p>';
-    bindCardCopies(list);
 
     const loaded = D.loadedBookIds();
     const remaining = D.BOOKS.filter((bk) => !loaded.includes(bk.id));
@@ -800,33 +891,10 @@
 
   /* Links to the same hadith (or a targeted search for it) on trusted external
    * sites. We only link out — no commentary is generated or excerpted here. */
-  /* If a commentary (sharh) of this collection is available in the app
-   * (e.g. Fath al-Bari for al-Bukhari), offer an in-app search of it for
-   * this hadith's Arabic wording. This locates the commentary passage by
-   * matching text — it is not a curated per-hadith mapping. */
-  function commentaryLink(bookId, arabicText) {
-    const comm = D.BOOKS.find((b) => b.commentaryOf === bookId);
-    if (!comm || !arabicText) return null;
-    // Search the commentary for this hadith's most distinctive words (longest,
-    // de-duplicated). Ibn Hajar quotes each hadith, so requiring several of its
-    // rare words to co-occur lands on the passage discussing it.
-    const words = Array.from(new Set(window.SFSearch.normalize(arabicText).split(' ').filter((w) => w.length >= 5)));
-    if (words.length < 3) return null;
-    words.sort((a, b) => b.length - a.length);
-    const q = words.slice(0, 4).join(' ');
-    return {
-      href: href({ view: 'search', q: q, in: [comm.id] }),
-      label: comm.name + ' — Ibn Hajar’s commentary on this hadith',
-      detail: 'searches ' + comm.short + '’s Arabic text for this hadith’s wording (' + comm.approxMB + ' MB, one-time)',
-    };
-  }
-
   function renderExplainLinks(bookId, hadith, sunnahUrl, arabicText) {
     const ul = document.getElementById('explain-links');
     if (!ul) return;
     const links = [];
-    const comm = commentaryLink(bookId, arabicText);
-    if (comm) links.push({ url: comm.href, label: comm.label, detail: comm.detail, internal: true });
     if (sunnahUrl) {
       links.push({ url: sunnahUrl, label: 'Sunnah.com — this hadith', detail: 'full isnad, alternative translations and in-book references' });
     } else {
@@ -848,8 +916,7 @@
       label: 'IslamQA.info — search fatwas citing this hadith', detail: 'scholarly answers that reference this narration',
     });
     ul.innerHTML = links.map((l) =>
-      '<li><a href="' + esc(l.url) + '"' + (l.internal ? '' : ' target="_blank" rel="noopener"') + '>' +
-      esc(l.label) + (l.internal ? '' : ' ↗') + '</a>' +
+      '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.label) + ' ↗</a>' +
       '<span class="muted"> — ' + esc(l.detail) + '</span></li>'
     ).join('');
   }
@@ -883,11 +950,13 @@
     window.scrollTo(0, 0);
     switch (route.view) {
       case 'search': renderSearch(route); break;
+      case 'browse': renderBrowse(); break;
       case 'book': renderBook(route); break;
       case 'section': renderSection(route); break;
       case 'hadith': renderHadith(route); break;
       default: renderHome();
     }
+    updateTabbar(route.view);
   }
 
   document.addEventListener('keydown', (e) => {
